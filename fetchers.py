@@ -181,14 +181,14 @@ class Player:
     number: str
     name: str
     position: str  # GK/DF/MF/FW
+    url: str = ""  # ゲキサカ選手ページ
 
 # 2026-07-04時点の登録選手(ゲキサカ掲載、取得失敗時のフォールバック)
 SNAPSHOT_PLAYERS: list[Player] = [
     Player("1", "菅野孝憲", "GK"), Player("24", "田川知樹", "GK"),
     Player("41", "唯野鶴眞", "GK"), Player("51", "高木駿", "GK"),
     Player("2", "高尾瑠", "DF"), Player("3", "パク・ミンギュ", "DF"),
-    Player("4", "中村桐耶", "DF"), Player("5", "福森晃斗", "DF"),
-    Player("15", "家泉怜依", "DF"), Player("17", "内田瑞己", "DF"),
+    Player("4", "中村桐耶", "DF"), Player("5", "福森晃斗", "DF"), Player("17", "内田瑞己", "DF"),
     Player("25", "大崎玲央", "DF"), Player("28", "岡田大和", "DF"),
     Player("31", "堀米悠斗", "DF"), Player("39", "川原颯斗", "DF"),
     Player("47", "西野奨太", "DF"), Player("50", "浦上仁騎", "DF"),
@@ -197,7 +197,7 @@ SNAPSHOT_PLAYERS: list[Player] = [
     Player("14", "田中克幸", "MF"), Player("16", "長谷川竜也", "MF"),
     Player("18", "木戸柊摩", "MF"), Player("27", "荒野拓馬", "MF"),
     Player("30", "田中宏武", "MF"), Player("35", "原康介", "MF"),
-    Player("40", "佐藤陽成", "MF"), Player("70", "フランシス・カン", "MF"),
+    Player("40", "佐藤陽成", "MF"),
     Player("9", "マリオ・セルジオ", "FW"), Player("9", "ジョルディ・サンチェス", "FW"),
     Player("19", "ティラパット", "FW"), Player("20", "アマドゥ・バカヨコ", "FW"),
     Player("22", "キングロード・サフォ", "FW"), Player("23", "大森真吾", "FW"),
@@ -222,32 +222,51 @@ def fetch_players() -> tuple[list[Player], bool]:
 
 
 def _parse_gekisaka_players(html: str) -> list[Player]:
-    """「▼GK」等の見出しと「番号+名前」の並びを解析する。
+    """選手一覧を解析する。リンク付きHTML構造を優先し、失敗時はテキスト解析。"""
+    soup = BeautifulSoup(html, "html.parser")
 
-    番号と名前が同じ行でも別々の行でも読めるようにする。
-    """
-    text = BeautifulSoup(html, "html.parser").get_text("\n")
+    # パターンA: <a href="/player/?...">名前</a> を順に辿り、直前の数字と▼見出しを対応付け
     players: list[Player] = []
-    pos = ""
-    pending_num = ""
+    pos, pending_num = "", ""
+    for node in soup.descendants:
+        if isinstance(node, str):
+            for t in node.splitlines():
+                t = t.strip()
+                m = re.match(r"^[▼■]\s*(GK|DF|MF|FW)", t)
+                if m:
+                    pos = m.group(1)
+                    pending_num = ""
+                elif re.fullmatch(r"\d{1,2}", t):
+                    pending_num = t
+        elif getattr(node, "name", "") == "a" and "/player/" in (node.get("href") or ""):
+            name = node.get_text(strip=True)
+            if pos and pending_num and 1 < len(name) < 20:
+                href = node["href"]
+                if href.startswith("/"):
+                    href = "https://web.gekisaka.jp" + href
+                players.append(Player(pending_num, name, pos, href))
+                pending_num = ""
+    if len(players) >= 15:
+        return players
+
+    # パターンB: テキストのみ(リンク構造が変わった場合の保険)
+    text = soup.get_text("\n")
+    players, pos, pending_num = [], "", ""
     for line in text.splitlines():
         line = line.strip()
         if not line:
             continue
         m = re.match(r"^[▼■]\s*(GK|DF|MF|FW)", line)
         if m:
-            pos = m.group(1)
-            pending_num = ""
+            pos, pending_num = m.group(1), ""
             continue
         if not pos:
             continue
-        # 「1菅野孝憲」形式(同一行)
         pm = re.match(r"^(\d{1,2})\s*([^\d].+)$", line)
         if pm and 1 < len(pm.group(2)) < 20:
             players.append(Player(pm.group(1), pm.group(2).strip(), pos))
             pending_num = ""
             continue
-        # 「1」→次行「菅野孝憲」形式(別行)
         if re.fullmatch(r"\d{1,2}", line):
             pending_num = line
             continue
@@ -255,6 +274,46 @@ def _parse_gekisaka_players(html: str) -> list[Player]:
             players.append(Player(pending_num, line, pos))
             pending_num = ""
     return players
+
+
+def fetch_player_detail(url: str) -> dict:
+    """ゲキサカの選手個人ページからプロフィール・経歴・関連ニュースを取得する。"""
+    res = requests.get(url, headers=UA, timeout=TIMEOUT)
+    res.raise_for_status()
+    text = BeautifulSoup(res.text, "html.parser").get_text("\n")
+    d: dict = {"news": []}
+
+    m = re.search(r"■所属\s*[:：]\s*(.+)", text)
+    if m:
+        d["club"] = m.group(1).strip()
+    m = re.search(r"■背番号\s*[:：]\s*(\S+)", text)
+    if m:
+        d["number"] = m.group(1).strip()
+    m = re.search(r"■ポジション\s*[:：]\s*(\S+)", text)
+    if m:
+        d["position"] = m.group(1).strip()
+    m = re.search(r"■\s*(\d{4}-\d{2}-\d{2})", text)
+    if m:
+        d["birth"] = m.group(1)
+    m = re.search(r"■\s*(\d{2,3}cm/\d{2,3}kg)", text)
+    if m:
+        d["body"] = m.group(1)
+    m = re.search(r"経歴\s*=\s*([^\n■]+)", text)
+    if m:
+        d["career"] = m.group(1).strip()
+    m = re.search(r"Jリーグ受賞歴\s*=?\s*([^\n■]+)", text)
+    if m:
+        d["awards"] = m.group(1).strip()
+    m = re.search(r"■代表歴\s*[:：]?\s*\n?\s*([^\n■]+)", text)
+    if m:
+        d["natl"] = m.group(1).strip()
+
+    # 関連ニュース: 「見出し 20xx-xx-xx」形式の行
+    for line in text.splitlines():
+        nm = re.match(r"^(.{8,60}?)\s+(20\d{2}-\d{2}-\d{2})$", line.strip())
+        if nm and len(d["news"]) < 5:
+            d["news"].append({"title": nm.group(1).strip(), "date": nm.group(2)})
+    return d
 
 
 # ============ J2順位表 ============

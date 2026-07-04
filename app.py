@@ -36,7 +36,15 @@ st.set_page_config(page_title="コンサドーレ情報ボード", page_icon="�
 st.markdown("""
 <style>
 .block-container {padding: 0.5rem 0.85rem 3rem !important; max-width: 640px;}
-header[data-testid="stHeader"] {height: 0;}
+/* Streamlitの標準UI(ヘッダー・メニュー・バッジ類)を完全に隠す */
+header[data-testid="stHeader"] {display: none !important;}
+div[data-testid="stToolbar"] {display: none !important;}
+div[data-testid="stDecoration"] {display: none !important;}
+div[data-testid="stStatusWidget"] {display: none !important;}
+#MainMenu {visibility: hidden !important;}
+footer {display: none !important;}
+div[class^="viewerBadge"], div[class*=" viewerBadge"] {display: none !important;}
+.stAppDeployButton {display: none !important;}
 button[data-baseweb="tab"] {font-size: 14px !important; font-weight: 800 !important;
   padding: 8px 9px !important;}
 button[data-baseweb="tab"][aria-selected="true"] {color: #C8102E !important;}

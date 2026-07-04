@@ -336,10 +336,11 @@ with tabs[4]:
     sel = st.selectbox("選手詳細", names, label_visibility="collapsed")
     if sel != names[0]:
         p_sel = players[names.index(sel) - 1]
-        if p_sel.url:
+        p_url = getattr(p_sel, "url", "")
+        if p_url:
             try:
                 with st.spinner("経歴を取得中…"):
-                    det = cached_player_detail(p_sel.url)
+                    det = cached_player_detail(p_url)
                 age = ""
                 if det.get("birth"):
                     b = datetime.strptime(det["birth"], "%Y-%m-%d").date()
@@ -379,7 +380,7 @@ with tabs[4]:
                     f'<span style="color:{GRAY};font-weight:400"> {det.get("club", "")}</span></div></div></div>'
                     f'<table style="width:100%;font-size:12.5px;border-collapse:collapse;'
                     f'margin-top:8px">{rows}</table>{career_html}{news_html}'
-                    f'<div style="margin-top:8px"><a href="{p_sel.url}" target="_blank" '
+                    f'<div style="margin-top:8px"><a href="{p_url}" target="_blank" '
                     f'style="color:{RED};font-size:12px;font-weight:700;text-decoration:none">'
                     f'ゲキサカで出場成績を見る →</a></div>'
                 ), unsafe_allow_html=True)
@@ -393,7 +394,7 @@ with tabs[4]:
                     f'<div style="font-size:12.5px;color:{GRAY};margin-top:8px">'
                     f'経歴データを取得できませんでした。以下のリンクからご覧ください。</div>'
                     f'<div style="margin-top:6px;font-size:12.5px;line-height:2">'
-                    f'<a href="{p_sel.url}" target="_blank" style="color:{RED};font-weight:700;'
+                    f'<a href="{p_url}" target="_blank" style="color:{RED};font-weight:700;'
                     f'text-decoration:none">ゲキサカの選手ページ →</a><br>'
                     f'<a href="https://www.google.com/search?q={p_sel.name}+コンサドーレ+成績" '
                     f'target="_blank" style="color:{RED};font-weight:700;text-decoration:none">'

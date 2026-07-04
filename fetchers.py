@@ -173,3 +173,141 @@ if __name__ == "__main__":
     print(f"ライブ取得: {live}")
     for m in sched:
         print(f"{m.date} {m.kickoff} vs {m.opponent} ({m.home_away}) {m.result}")
+
+
+# ============ 選手一覧 ============
+@dataclass
+class Player:
+    number: str
+    name: str
+    position: str  # GK/DF/MF/FW
+
+# 2026-07-04時点の登録選手(ゲキサカ掲載、取得失敗時のフォールバック)
+SNAPSHOT_PLAYERS: list[Player] = [
+    Player("1", "菅野孝憲", "GK"), Player("24", "田川知樹", "GK"),
+    Player("41", "唯野鶴眞", "GK"), Player("51", "高木駿", "GK"),
+    Player("2", "高尾瑠", "DF"), Player("3", "パク・ミンギュ", "DF"),
+    Player("4", "中村桐耶", "DF"), Player("5", "福森晃斗", "DF"),
+    Player("15", "家泉怜依", "DF"), Player("17", "内田瑞己", "DF"),
+    Player("25", "大崎玲央", "DF"), Player("28", "岡田大和", "DF"),
+    Player("31", "堀米悠斗", "DF"), Player("39", "川原颯斗", "DF"),
+    Player("47", "西野奨太", "DF"), Player("50", "浦上仁騎", "DF"),
+    Player("7", "スパチョーク", "MF"), Player("10", "宮澤裕樹", "MF"),
+    Player("11", "青木亮太", "MF"), Player("13", "堀米勇輝", "MF"),
+    Player("14", "田中克幸", "MF"), Player("16", "長谷川竜也", "MF"),
+    Player("18", "木戸柊摩", "MF"), Player("27", "荒野拓馬", "MF"),
+    Player("30", "田中宏武", "MF"), Player("35", "原康介", "MF"),
+    Player("40", "佐藤陽成", "MF"), Player("70", "フランシス・カン", "MF"),
+    Player("9", "マリオ・セルジオ", "FW"), Player("9", "ジョルディ・サンチェス", "FW"),
+    Player("19", "ティラパット", "FW"), Player("20", "アマドゥ・バカヨコ", "FW"),
+    Player("22", "キングロード・サフォ", "FW"), Player("23", "大森真吾", "FW"),
+    Player("71", "白井陽斗", "FW"),
+]
+
+
+def fetch_players() -> tuple[list[Player], bool]:
+    """ゲキサカの選手一覧を取得する。失敗時はスナップショットを返す。"""
+    try:
+        res = requests.get(
+            "https://web.gekisaka.jp/club/player?club_id=561",
+            headers=UA, timeout=TIMEOUT,
+        )
+        res.raise_for_status()
+        players = _parse_gekisaka_players(res.text)
+        if len(players) >= 15:  # 妥当な人数が取れた時だけライブ扱い
+            return players, True
+    except Exception:
+        pass
+    return SNAPSHOT_PLAYERS, False
+
+
+def _parse_gekisaka_players(html: str) -> list[Player]:
+    """「▼GK」等の見出しと「番号+名前」の並びを解析する。
+
+    番号と名前が同じ行でも別々の行でも読めるようにする。
+    """
+    text = BeautifulSoup(html, "html.parser").get_text("\n")
+    players: list[Player] = []
+    pos = ""
+    pending_num = ""
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        m = re.match(r"^[▼■]\s*(GK|DF|MF|FW)", line)
+        if m:
+            pos = m.group(1)
+            pending_num = ""
+            continue
+        if not pos:
+            continue
+        # 「1菅野孝憲」形式(同一行)
+        pm = re.match(r"^(\d{1,2})\s*([^\d].+)$", line)
+        if pm and 1 < len(pm.group(2)) < 20:
+            players.append(Player(pm.group(1), pm.group(2).strip(), pos))
+            pending_num = ""
+            continue
+        # 「1」→次行「菅野孝憲」形式(別行)
+        if re.fullmatch(r"\d{1,2}", line):
+            pending_num = line
+            continue
+        if pending_num and 1 < len(line) < 20 and not line.startswith(("http", "▼")):
+            players.append(Player(pending_num, line, pos))
+            pending_num = ""
+    return players
+
+
+# ============ J2順位表 ============
+J2_CLUBS_2627 = [
+    "札幌", "仙台", "秋田", "山形", "いわき", "水戸", "大宮", "千葉", "甲府",
+    "長野", "松本", "金沢", "沼津", "磐田", "藤枝", "岐阜", "奈良", "愛媛",
+    "徳島", "新潟",
+]
+
+
+@dataclass
+class StandingRow:
+    rank: str
+    club: str
+    pts: str
+    played: str
+    win: str
+    draw: str
+    lose: str
+    gf: str
+    ga: str
+    gd: str
+
+
+def fetch_standings() -> tuple[list[StandingRow], bool]:
+    """スポーツナビのJ2順位表を取得する。
+
+    開幕前やサイト構造変更で読み取れない場合は ([], False) を返す。
+    """
+    try:
+        res = requests.get(
+            "https://soccer.yahoo.co.jp/jleague/category/j2/standings",
+            headers=UA, timeout=TIMEOUT,
+        )
+        res.raise_for_status()
+        soup = BeautifulSoup(res.text, "html.parser")
+        rows: list[StandingRow] = []
+        for tr in soup.find_all("tr"):
+            cells = [td.get_text(" ", strip=True) for td in tr.find_all(["td", "th"])]
+            if len(cells) < 8:
+                continue
+            club = next((c for c in cells if any(k in c for k in J2_CLUBS_2627)), "")
+            nums = [c for c in cells if re.fullmatch(r"-?\d+", c)]
+            if not club or len(nums) < 7:
+                continue
+            rows.append(StandingRow(
+                rank=nums[0], club=club, pts=nums[1], played=nums[2],
+                win=nums[3], draw=nums[4], lose=nums[5],
+                gf=nums[6], ga=nums[7] if len(nums) > 7 else "-",
+                gd=nums[8] if len(nums) > 8 else "-",
+            ))
+        if len(rows) >= 10:
+            return rows, True
+    except Exception:
+        pass
+    return [], False

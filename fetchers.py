@@ -205,6 +205,14 @@ SNAPSHOT_PLAYERS: list[Player] = [
 ]
 
 
+# 退団・移籍が確定した選手(データ源の更新が遅れても表示しない)
+DEPARTED_PLAYERS = {"家泉怜依", "フランシス・カン"}
+
+
+def _exclude_departed(players: list[Player]) -> list[Player]:
+    return [p for p in players if p.name not in DEPARTED_PLAYERS]
+
+
 def fetch_players() -> tuple[list[Player], bool]:
     """ゲキサカの選手一覧を取得する。失敗時はスナップショットを返す。"""
     try:
@@ -215,10 +223,10 @@ def fetch_players() -> tuple[list[Player], bool]:
         res.raise_for_status()
         players = _parse_gekisaka_players(res.text)
         if len(players) >= 15:  # 妥当な人数が取れた時だけライブ扱い
-            return players, True
+            return _exclude_departed(players), True
     except Exception:
         pass
-    return SNAPSHOT_PLAYERS, False
+    return _exclude_departed(SNAPSHOT_PLAYERS), False
 
 
 def _parse_gekisaka_players(html: str) -> list[Player]:
@@ -278,7 +286,13 @@ def _parse_gekisaka_players(html: str) -> list[Player]:
 
 def fetch_player_detail(url: str) -> dict:
     """ゲキサカの選手個人ページからプロフィール・経歴・関連ニュースを取得する。"""
-    res = requests.get(url, headers=UA, timeout=TIMEOUT)
+    headers = {
+        "User-Agent": ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+                       "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"),
+        "Referer": "https://web.gekisaka.jp/club/player?club_id=561",
+        "Accept-Language": "ja,en;q=0.8",
+    }
+    res = requests.get(url, headers=headers, timeout=TIMEOUT)
     res.raise_for_status()
     text = BeautifulSoup(res.text, "html.parser").get_text("\n")
     d: dict = {"news": []}

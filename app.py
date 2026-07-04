@@ -383,8 +383,24 @@ with tabs[4]:
                     f'style="color:{RED};font-size:12px;font-weight:700;text-decoration:none">'
                     f'ゲキサカで出場成績を見る →</a></div>'
                 ), unsafe_allow_html=True)
-            except Exception:
-                st.warning("詳細の取得に失敗しました。少し待って再度選択してください。")
+            except Exception as e:
+                st.markdown(card(
+                    f'<div style="display:flex;align-items:center;gap:10px">'
+                    f'<span style="background:{BLACK};color:#fff;font-weight:900;font-size:19px;'
+                    f'border-radius:10px;min-width:44px;text-align:center;padding:8px 0">{p_sel.number}</span>'
+                    f'<div><div style="font-weight:900;font-size:17px">{p_sel.name}</div>'
+                    f'<div style="font-size:11px;color:{RED};font-weight:800">{p_sel.position}</div></div></div>'
+                    f'<div style="font-size:12.5px;color:{GRAY};margin-top:8px">'
+                    f'経歴データを取得できませんでした。以下のリンクからご覧ください。</div>'
+                    f'<div style="margin-top:6px;font-size:12.5px;line-height:2">'
+                    f'<a href="{p_sel.url}" target="_blank" style="color:{RED};font-weight:700;'
+                    f'text-decoration:none">ゲキサカの選手ページ →</a><br>'
+                    f'<a href="https://www.google.com/search?q={p_sel.name}+コンサドーレ+成績" '
+                    f'target="_blank" style="color:{RED};font-weight:700;text-decoration:none">'
+                    f'成績を検索 →</a></div>'
+                    f'<div style="font-size:10px;color:#b9bdc4;margin-top:6px;font-family:monospace">'
+                    f'診断: {type(e).__name__}: {str(e)[:120]}</div>'
+                ), unsafe_allow_html=True)
         else:
             st.info("詳細データは上の「更新」でライブ取得に切り替えてからご覧いただけます。")
     for pos, label in [("GK", "ゴールキーパー"), ("DF", "ディフェンダー"),

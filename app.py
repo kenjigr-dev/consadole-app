@@ -325,6 +325,68 @@ with tabs[4]:
         players, p_live = SNAPSHOT_PLAYERS, False
     st.caption("ゲキサカからライブ取得(移籍を自動反映)" if p_live
                else f"{SNAPSHOT_DATE}時点の登録選手")
+
+    # --- 選手詳細ビューア ---
+    @st.cache_data(ttl=86400, show_spinner=False)
+    def cached_player_detail(url):
+        from fetchers import fetch_player_detail
+        return fetch_player_detail(url)
+
+    names = ["選手を選んで詳細を見る…"] + [f"{p.number} {p.name}" for p in players]
+    sel = st.selectbox("選手詳細", names, label_visibility="collapsed")
+    if sel != names[0]:
+        p_sel = players[names.index(sel) - 1]
+        if p_sel.url:
+            try:
+                with st.spinner("経歴を取得中…"):
+                    det = cached_player_detail(p_sel.url)
+                age = ""
+                if det.get("birth"):
+                    b = datetime.strptime(det["birth"], "%Y-%m-%d").date()
+                    t = date.today()
+                    a = t.year - b.year - ((t.month, t.day) < (b.month, b.day))
+                    age = f"({a}歳)"
+                rows = ""
+                for label, key, suffix in [("生年月日", "birth", f" {age}"),
+                                           ("身長/体重", "body", ""),
+                                           ("受賞歴", "awards", ""),
+                                           ("代表歴", "natl", "")]:
+                    if det.get(key):
+                        rows += (f'<tr><td style="color:{GRAY};font-weight:700;width:76px;'
+                                 f'padding:4px 0;vertical-align:top">{label}</td>'
+                                 f'<td>{det[key]}{suffix}</td></tr>')
+                career_html = ""
+                if det.get("career"):
+                    steps = det["career"].replace("−", "-").split("-")
+                    chain = ' <span style="color:' + RED + '">→</span> '.join(s.strip() for s in steps if s.strip())
+                    career_html = (f'<div style="font-size:11px;color:{GRAY};font-weight:700;'
+                                   f'margin-top:8px">経歴</div>'
+                                   f'<div style="font-size:12.5px;line-height:1.9">{chain}</div>')
+                news_html = ""
+                if det.get("news"):
+                    items = "".join(
+                        f'<div style="font-size:12px;padding:3px 0;border-top:1px solid #eef0f2">'
+                        f'<span style="color:{GRAY}">{n["date"]}</span> {n["title"]}</div>'
+                        for n in det["news"])
+                    news_html = (f'<div style="font-size:11px;color:{GRAY};font-weight:700;'
+                                 f'margin-top:8px">関連ニュース</div>{items}')
+                st.markdown(card(
+                    f'<div style="display:flex;align-items:center;gap:10px">'
+                    f'<span style="background:{BLACK};color:#fff;font-weight:900;font-size:19px;'
+                    f'border-radius:10px;min-width:44px;text-align:center;padding:8px 0">{p_sel.number}</span>'
+                    f'<div><div style="font-weight:900;font-size:17px">{p_sel.name}</div>'
+                    f'<div style="font-size:11px;color:{RED};font-weight:800">{p_sel.position}'
+                    f'<span style="color:{GRAY};font-weight:400"> {det.get("club", "")}</span></div></div></div>'
+                    f'<table style="width:100%;font-size:12.5px;border-collapse:collapse;'
+                    f'margin-top:8px">{rows}</table>{career_html}{news_html}'
+                    f'<div style="margin-top:8px"><a href="{p_sel.url}" target="_blank" '
+                    f'style="color:{RED};font-size:12px;font-weight:700;text-decoration:none">'
+                    f'ゲキサカで出場成績を見る →</a></div>'
+                ), unsafe_allow_html=True)
+            except Exception:
+                st.warning("詳細の取得に失敗しました。少し待って再度選択してください。")
+        else:
+            st.info("詳細データは上の「更新」でライブ取得に切り替えてからご覧いただけます。")
     for pos, label in [("GK", "ゴールキーパー"), ("DF", "ディフェンダー"),
                        ("MF", "ミッドフィールダー"), ("FW", "フォワード")]:
         group = [p for p in players if p.position == pos]

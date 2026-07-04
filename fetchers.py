@@ -13,7 +13,11 @@ import feedparser
 import requests
 from bs4 import BeautifulSoup
 
-UA = {"User-Agent": "Mozilla/5.0 (personal fan dashboard; contact: local user)"}
+UA = {
+    "User-Agent": ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+                   "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"),
+    "Accept-Language": "ja,en;q=0.8",
+}
 TIMEOUT = 15
 
 

@@ -333,8 +333,11 @@ with tabs[4]:
         return fetch_player_detail(url)
 
     names = ["選手を選んで詳細を見る…"] + [f"{p.number} {p.name}" for p in players]
-    sel = st.selectbox("選手詳細", names, label_visibility="collapsed")
+    sel = st.selectbox("選手詳細", names, label_visibility="collapsed", key="player_sel")
     if sel != names[0]:
+        if st.button("× 詳細を閉じる", key="close_detail"):
+            st.session_state.player_sel = names[0]
+            st.rerun()
         p_sel = players[names.index(sel) - 1]
         p_url = getattr(p_sel, "url", "")
         if p_url:
@@ -403,7 +406,21 @@ with tabs[4]:
                     f'診断: {type(e).__name__}: {str(e)[:120]}</div>'
                 ), unsafe_allow_html=True)
         else:
-            st.info("詳細データは上の「更新」でライブ取得に切り替えてからご覧いただけます。")
+            st.markdown(card(
+                f'<div style="display:flex;align-items:center;gap:10px">'
+                f'<span style="background:{BLACK};color:#fff;font-weight:900;font-size:19px;'
+                f'border-radius:10px;min-width:44px;text-align:center;padding:8px 0">{p_sel.number}</span>'
+                f'<div><div style="font-weight:900;font-size:17px">{p_sel.name}</div>'
+                f'<div style="font-size:11px;color:{RED};font-weight:800">{p_sel.position}</div></div></div>'
+                f'<div style="font-size:12.5px;color:{GRAY};margin-top:8px">'
+                f'現在オフライン表示のため経歴データを取得できません。以下からご覧ください。</div>'
+                f'<div style="margin-top:6px;font-size:12.5px;line-height:2">'
+                f'<a href="https://www.google.com/search?q={p_sel.name}+コンサドーレ+経歴+成績" '
+                f'target="_blank" style="color:{RED};font-weight:700;text-decoration:none">'
+                f'経歴・成績を検索 →</a><br>'
+                f'<a href="https://www.consadole-sapporo.jp/team/topteam/" target="_blank" '
+                f'style="color:{RED};font-weight:700;text-decoration:none">公式サイトの選手一覧 →</a></div>'
+            ), unsafe_allow_html=True)
     for pos, label in [("GK", "ゴールキーパー"), ("DF", "ディフェンダー"),
                        ("MF", "ミッドフィールダー"), ("FW", "フォワード")]:
         group = [p for p in players if p.position == pos]

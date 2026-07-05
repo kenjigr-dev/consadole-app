@@ -323,7 +323,7 @@ with tabs[4]:
     except Exception:
         from fetchers import SNAPSHOT_PLAYERS
         players, p_live = SNAPSHOT_PLAYERS, False
-    st.caption("選手名をタップすると経歴が表示されます"
+    st.caption("選手名をタップすると経歴がポップアップ表示されます"
                + ("(名簿はライブ取得)" if p_live else f"(名簿は{SNAPSHOT_DATE}時点)"))
 
     @st.cache_data(ttl=86400, show_spinner=False)
@@ -336,15 +336,10 @@ with tabs[4]:
         from fetchers import fetch_player_wiki
         return fetch_player_wiki(name)
 
-    # --- 選択中の選手詳細(名簿の上に表示) ---
-    sel_i = st.session_state.get("sel_player", None)
-    if sel_i is not None and sel_i < len(players):
-        p_sel = players[sel_i]
+    @st.dialog("選手詳細")
+    def show_player(p_sel):
         p_url = getattr(p_sel, "url", "")
-        if st.button("× 詳細を閉じる", key="close_detail"):
-            st.session_state.sel_player = None
-            st.rerun()
-
+        diag = []
         head_html = (
             f'<div style="display:flex;align-items:center;gap:10px">'
             f'<span style="background:{BLACK};color:#fff;font-weight:900;font-size:19px;'
@@ -360,9 +355,8 @@ with tabs[4]:
             f'target="_blank" style="color:{RED};font-weight:700;text-decoration:none">'
             f'経歴・成績を検索 →</a></div>'
         )
-
-        detail_html = None
-        # ルート1: ゲキサカ選手ページ
+        body = None
+        # ルート1: ゲキサカ
         if p_url:
             try:
                 with st.spinner("経歴を取得中…"):
@@ -399,36 +393,45 @@ with tabs[4]:
                             for n in det["news"])
                         news_html = (f'<div style="font-size:11px;color:{GRAY};font-weight:700;'
                                      f'margin-top:8px">関連ニュース</div>{items}')
-                    detail_html = (head_html
-                                   + f'<table style="width:100%;font-size:12.5px;'
-                                   f'border-collapse:collapse;margin-top:8px">{rows}</table>'
-                                   + career_html + news_html + links_html)
-            except Exception:
-                pass
-        # ルート2: Wikipedia要約(ゲキサカ不通時の予備)
-        if detail_html is None:
+                    body = (head_html
+                            + f'<table style="width:100%;font-size:12.5px;'
+                            f'border-collapse:collapse;margin-top:8px">{rows}</table>'
+                            + career_html + news_html + links_html)
+                else:
+                    diag.append("ゲキサカ: データ項目が空")
+            except Exception as e:
+                diag.append(f"ゲキサカ: {type(e).__name__} {str(e)[:60]}")
+        else:
+            diag.append("ゲキサカ: URLなし(オフライン名簿)")
+        # ルート2: Wikipedia
+        if body is None:
             try:
                 with st.spinner("経歴を取得中…"):
                     wiki = cached_player_wiki(p_sel.name)
-            except Exception:
-                wiki = {}
-            if wiki.get("extract"):
-                wiki_link = (f'<a href="{wiki["wiki_url"]}" target="_blank" '
-                             f'style="color:{RED};font-size:12px;font-weight:700;'
-                             f'text-decoration:none">Wikipediaで続きを読む →</a>'
-                             if wiki.get("wiki_url") else "")
-                detail_html = (head_html
-                               + f'<div style="font-size:13px;line-height:1.9;margin-top:8px">'
-                               f'{wiki["extract"]}</div>{wiki_link}{links_html}')
-        # ルート3: リンク集(最終手段)
-        if detail_html is None:
-            detail_html = (head_html
-                           + f'<div style="font-size:12.5px;color:{GRAY};margin-top:8px">'
-                           f'経歴データを取得できませんでした。以下からご覧ください。</div>'
-                           + links_html)
-        st.markdown(card(detail_html), unsafe_allow_html=True)
+                if wiki.get("extract"):
+                    wiki_link = (f'<a href="{wiki["wiki_url"]}" target="_blank" '
+                                 f'style="color:{RED};font-size:12px;font-weight:700;'
+                                 f'text-decoration:none">Wikipediaで続きを読む →</a>'
+                                 if wiki.get("wiki_url") else "")
+                    body = (head_html
+                            + f'<div style="font-size:13px;line-height:1.9;margin-top:8px">'
+                            f'{wiki["extract"]}</div>{wiki_link}{links_html}')
+                else:
+                    diag.append("Wikipedia: 該当記事なし")
+            except Exception as e:
+                diag.append(f"Wikipedia: {type(e).__name__} {str(e)[:60]}")
+        # ルート3: リンク集
+        if body is None:
+            body = (head_html
+                    + f'<div style="font-size:12.5px;color:{GRAY};margin-top:8px">'
+                    f'経歴データを取得できませんでした。以下からご覧ください。</div>'
+                    + links_html)
+        if diag and body and "取得できませんでした" in body:
+            body += (f'<div style="font-size:10px;color:#b9bdc4;margin-top:8px;'
+                     f'font-family:monospace">診断: {" / ".join(diag)}</div>')
+        st.markdown(card(body, mb="0"), unsafe_allow_html=True)
 
-    # --- 名簿(タップで詳細を開く) ---
+    # --- 名簿(タップでポップアップ) ---
     for pos, label in [("GK", "ゴールキーパー"), ("DF", "ディフェンダー"),
                        ("MF", "ミッドフィールダー"), ("FW", "フォワード")]:
         idx = [i for i, p in enumerate(players) if p.position == pos]
@@ -446,8 +449,7 @@ with tabs[4]:
                 p = players[i]
                 if col.button(f"{p.number}  {p.name}", key=f"pl_{i}",
                               use_container_width=True):
-                    st.session_state.sel_player = i
-                    st.rerun()
+                    show_player(p)
 
 # ============ 分析 ============
 with tabs[5]:
@@ -526,3 +528,5 @@ with tabs[5]:
         use_container_width=True, hide_index=True,
     )
     st.caption("J2優勝3回(2000・2007・2016)/ J1最高4位(2018)/ 2017〜24年に8季連続J1在籍")
+
+st.caption("コンサドーレ情報ボード v1.0")

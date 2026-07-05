@@ -1,4 +1,4 @@
-"""コンサドーレ情報ボード — マッチデー中心設計・iPhone最適化"""
+"""コンサ情報ボード — マッチデー中心設計・iPhone最適化"""
 import re
 from datetime import date, datetime
 
@@ -33,7 +33,7 @@ GRAD_RED = "linear-gradient(135deg,#E8112D 0%,#8f0a1d 100%)"
 PTS = {"勝": 3, "PK勝": 2, "PK負": 1, "負": 0}
 RESULT_DOT = {"勝": ("W", "#FF3B55"), "PK勝": ("W", PINK), "PK負": ("L", "#7d8494"), "負": ("L", "#4a4f59")}
 
-st.set_page_config(page_title="コンサドーレ情報ボード", page_icon="⚽", layout="centered")
+st.set_page_config(page_title="コンサ情報ボード", page_icon="⚽", layout="centered")
 
 st.markdown("""
 <style>
@@ -132,14 +132,11 @@ st.markdown(
     f'<div style="font-size:0;line-height:0">{stripe}</div>'
     f'<div style="background:linear-gradient(180deg,#191B20,#0D0E11);'
     f'border:1px solid {CARD_BD};border-top:none;padding:12px 15px;'
-    f'border-radius:0 0 16px 16px;margin-bottom:10px;'
-    f'display:flex;justify-content:space-between;align-items:center">'
-    f'<div><div style="color:{RED};font-size:9px;letter-spacing:.28em;font-weight:800">'
+    f'border-radius:0 0 16px 16px;margin-bottom:10px">'
+    f'<div style="color:{RED};font-size:9px;letter-spacing:.28em;font-weight:800">'
     f'HOKKAIDO CONSADOLE SAPPORO</div>'
     f'<div style="color:{TXT};font-size:19px;font-weight:900;letter-spacing:.02em">'
-    f'コンサドーレ<span style="color:{RED}">情報ボード</span></div></div>'
-    f'<div style="text-align:right;color:{GRAY};font-size:10px">{date.today():%-m/%-d}<br>'
-    f'<span class="score-num" style="color:{TXT};font-size:14px">2026/27</span></div></div>',
+    f'コンサ<span style="color:{RED}">情報ボード</span></div></div>',
     unsafe_allow_html=True,
 )
 
@@ -271,12 +268,15 @@ with tabs[0]:
 with tabs[1]:
     c1, c2 = st.columns([3, 1])
     c1.markdown("### 最新ニュース")
-    if c2.button("更新", key="news_btn", use_container_width=True):
+    if c2.button("更新", key="news_btn", width="stretch"):
         cached_news.clear()
     try:
         with st.spinner("取得中…"):
             news, at = cached_news()
-        st.caption(f"リアルタイム取得 {at:%H:%M}(5分ごと自動更新)")
+        if not news:
+            st.warning("ニュースを取得できませんでした。しばらくしてから「更新」を押してください。")
+        else:
+            st.caption(f"リアルタイム取得 {at:%H:%M}(5分ごと自動更新)")
         for n in news:
             st.markdown(card(
                 f'<span style="background:{GRAD_RED};color:#fff;font-size:10px;font-weight:800;'
@@ -292,14 +292,12 @@ with tabs[1]:
 with tabs[2]:
     c1, c2 = st.columns([3, 1])
     c1.markdown("### 日程・結果")
-    if c2.button("更新", key="sched_btn", use_container_width=True):
+    if c2.button("更新", key="sched_btn", width="stretch"):
         cached_schedule.clear()
     sched, live, at = get_schedule_safe()
     st.caption(f"公式サイトからライブ取得({at:%H:%M})" if live
                else f"{SNAPSHOT_DATE}時点の確定日程")
     for m in sched:
-        d = parse_jp_date(m.date)
-        is_next = (m is (next_m if 'next_m' in dir() else None))
         ha_label = "H" if m.home_away == "H" else "A"
         ha_color = RED if m.home_away == "H" else GRAY
         res_color = "#FF3B55" if m.result != "予定" else GRAY
@@ -321,7 +319,7 @@ with tabs[2]:
 with tabs[3]:
     c1, c2 = st.columns([3, 1])
     c1.markdown("### J2順位表")
-    if c2.button("更新", key="stand_btn", use_container_width=True):
+    if c2.button("更新", key="stand_btn", width="stretch"):
         cached_standings.clear()
     try:
         with st.spinner("取得中…"):
@@ -337,7 +335,7 @@ with tabs[3]:
         st.dataframe(
             df.style.apply(lambda x: ["background-color:#3a1218" if sap.iloc[i] else ""
                                       for i in range(len(x))], axis=0),
-            use_container_width=True, hide_index=True,
+            width="stretch", hide_index=True,
         )
         st.caption("スポーツナビからライブ取得(10分ごと自動更新)。上位2枠=自動昇格、3〜6位=昇格PO圏。")
     else:
@@ -352,7 +350,7 @@ with tabs[3]:
 with tabs[4]:
     c1, c2 = st.columns([3, 1])
     c1.markdown("### 所属選手")
-    if c2.button("更新", key="play_btn", use_container_width=True):
+    if c2.button("更新", key="play_btn", width="stretch"):
         cached_players.clear()
     try:
         with st.spinner("取得中…"):
@@ -485,7 +483,7 @@ with tabs[4]:
             for col, i in zip(cols, idx[row_start:row_start + 2]):
                 p = players[i]
                 if col.button(f"{p.number}  {p.name}", key=f"pl_{i}",
-                              use_container_width=True):
+                              width="stretch"):
                     show_player(p)
 
 # ============ 分析 ============
@@ -557,14 +555,14 @@ with tabs[5]:
     st.dataframe(
         pd.DataFrame([{"日付": d, "対戦": o, "H/A": h, "スコア": s, "結果": r}
                       for d, o, h, s, r in SEASON_SP]),
-        use_container_width=True, hide_index=True, height=350,
+        width="stretch", hide_index=True, height=350,
     )
 
     st.markdown("### リーグ成績の推移")
     st.dataframe(
         pd.DataFrame([{"年": y, "リーグ": lg, "順位": f"{r}位"} for y, lg, r in HISTORY]),
-        use_container_width=True, hide_index=True,
+        width="stretch", hide_index=True,
     )
     st.caption("J2優勝3回(2000・2007・2016)/ J1最高4位(2018)/ 2017〜24年に8季連続J1在籍")
 
-st.caption("コンサドーレ情報ボード v2.0 — Stadium Night Edition")
+st.caption("コンサ情報ボード v2.1 — Stadium Night Edition")

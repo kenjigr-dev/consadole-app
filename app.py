@@ -323,124 +323,131 @@ with tabs[4]:
     except Exception:
         from fetchers import SNAPSHOT_PLAYERS
         players, p_live = SNAPSHOT_PLAYERS, False
-    st.caption("ゲキサカからライブ取得(移籍を自動反映)" if p_live
-               else f"{SNAPSHOT_DATE}時点の登録選手")
+    st.caption("選手名をタップすると経歴が表示されます"
+               + ("(名簿はライブ取得)" if p_live else f"(名簿は{SNAPSHOT_DATE}時点)"))
 
-    # --- 選手詳細ビューア ---
     @st.cache_data(ttl=86400, show_spinner=False)
     def cached_player_detail(url):
         from fetchers import fetch_player_detail
         return fetch_player_detail(url)
 
-    names = ["選手を選んで詳細を見る…"] + [f"{p.number} {p.name}" for p in players]
-    sel = st.selectbox("選手詳細", names, label_visibility="collapsed", key="player_sel")
-    if sel != names[0]:
-        if st.button("× 詳細を閉じる", key="close_detail"):
-            st.session_state.player_sel = names[0]
-            st.rerun()
-        p_sel = players[names.index(sel) - 1]
+    @st.cache_data(ttl=86400, show_spinner=False)
+    def cached_player_wiki(name):
+        from fetchers import fetch_player_wiki
+        return fetch_player_wiki(name)
+
+    # --- 選択中の選手詳細(名簿の上に表示) ---
+    sel_i = st.session_state.get("sel_player", None)
+    if sel_i is not None and sel_i < len(players):
+        p_sel = players[sel_i]
         p_url = getattr(p_sel, "url", "")
+        if st.button("× 詳細を閉じる", key="close_detail"):
+            st.session_state.sel_player = None
+            st.rerun()
+
+        head_html = (
+            f'<div style="display:flex;align-items:center;gap:10px">'
+            f'<span style="background:{BLACK};color:#fff;font-weight:900;font-size:19px;'
+            f'border-radius:10px;min-width:44px;text-align:center;padding:8px 0">{p_sel.number}</span>'
+            f'<div><div style="font-weight:900;font-size:17px">{p_sel.name}</div>'
+            f'<div style="font-size:11px;color:{RED};font-weight:800">{p_sel.position}</div></div></div>'
+        )
+        links_html = (
+            f'<div style="margin-top:8px;font-size:12.5px;line-height:2">'
+            + (f'<a href="{p_url}" target="_blank" style="color:{RED};font-weight:700;'
+               f'text-decoration:none">ゲキサカで出場成績を見る →</a><br>' if p_url else "")
+            + f'<a href="https://www.google.com/search?q={p_sel.name}+コンサドーレ+経歴+成績" '
+            f'target="_blank" style="color:{RED};font-weight:700;text-decoration:none">'
+            f'経歴・成績を検索 →</a></div>'
+        )
+
+        detail_html = None
+        # ルート1: ゲキサカ選手ページ
         if p_url:
             try:
                 with st.spinner("経歴を取得中…"):
                     det = cached_player_detail(p_url)
-                age = ""
-                if det.get("birth"):
-                    b = datetime.strptime(det["birth"], "%Y-%m-%d").date()
-                    t = date.today()
-                    a = t.year - b.year - ((t.month, t.day) < (b.month, b.day))
-                    age = f"({a}歳)"
-                rows = ""
-                for label, key, suffix in [("生年月日", "birth", f" {age}"),
-                                           ("身長/体重", "body", ""),
-                                           ("受賞歴", "awards", ""),
-                                           ("代表歴", "natl", "")]:
-                    if det.get(key):
-                        rows += (f'<tr><td style="color:{GRAY};font-weight:700;width:76px;'
-                                 f'padding:4px 0;vertical-align:top">{label}</td>'
-                                 f'<td>{det[key]}{suffix}</td></tr>')
-                career_html = ""
-                if det.get("career"):
-                    steps = det["career"].replace("−", "-").split("-")
-                    chain = ' <span style="color:' + RED + '">→</span> '.join(s.strip() for s in steps if s.strip())
-                    career_html = (f'<div style="font-size:11px;color:{GRAY};font-weight:700;'
-                                   f'margin-top:8px">経歴</div>'
-                                   f'<div style="font-size:12.5px;line-height:1.9">{chain}</div>')
-                news_html = ""
-                if det.get("news"):
-                    items = "".join(
-                        f'<div style="font-size:12px;padding:3px 0;border-top:1px solid #eef0f2">'
-                        f'<span style="color:{GRAY}">{n["date"]}</span> {n["title"]}</div>'
-                        for n in det["news"])
-                    news_html = (f'<div style="font-size:11px;color:{GRAY};font-weight:700;'
-                                 f'margin-top:8px">関連ニュース</div>{items}')
-                st.markdown(card(
-                    f'<div style="display:flex;align-items:center;gap:10px">'
-                    f'<span style="background:{BLACK};color:#fff;font-weight:900;font-size:19px;'
-                    f'border-radius:10px;min-width:44px;text-align:center;padding:8px 0">{p_sel.number}</span>'
-                    f'<div><div style="font-weight:900;font-size:17px">{p_sel.name}</div>'
-                    f'<div style="font-size:11px;color:{RED};font-weight:800">{p_sel.position}'
-                    f'<span style="color:{GRAY};font-weight:400"> {det.get("club", "")}</span></div></div></div>'
-                    f'<table style="width:100%;font-size:12.5px;border-collapse:collapse;'
-                    f'margin-top:8px">{rows}</table>{career_html}{news_html}'
-                    f'<div style="margin-top:8px"><a href="{p_url}" target="_blank" '
-                    f'style="color:{RED};font-size:12px;font-weight:700;text-decoration:none">'
-                    f'ゲキサカで出場成績を見る →</a></div>'
-                ), unsafe_allow_html=True)
-            except Exception as e:
-                st.markdown(card(
-                    f'<div style="display:flex;align-items:center;gap:10px">'
-                    f'<span style="background:{BLACK};color:#fff;font-weight:900;font-size:19px;'
-                    f'border-radius:10px;min-width:44px;text-align:center;padding:8px 0">{p_sel.number}</span>'
-                    f'<div><div style="font-weight:900;font-size:17px">{p_sel.name}</div>'
-                    f'<div style="font-size:11px;color:{RED};font-weight:800">{p_sel.position}</div></div></div>'
-                    f'<div style="font-size:12.5px;color:{GRAY};margin-top:8px">'
-                    f'経歴データを取得できませんでした。以下のリンクからご覧ください。</div>'
-                    f'<div style="margin-top:6px;font-size:12.5px;line-height:2">'
-                    f'<a href="{p_url}" target="_blank" style="color:{RED};font-weight:700;'
-                    f'text-decoration:none">ゲキサカの選手ページ →</a><br>'
-                    f'<a href="https://www.google.com/search?q={p_sel.name}+コンサドーレ+成績" '
-                    f'target="_blank" style="color:{RED};font-weight:700;text-decoration:none">'
-                    f'成績を検索 →</a></div>'
-                    f'<div style="font-size:10px;color:#b9bdc4;margin-top:6px;font-family:monospace">'
-                    f'診断: {type(e).__name__}: {str(e)[:120]}</div>'
-                ), unsafe_allow_html=True)
-        else:
-            st.markdown(card(
-                f'<div style="display:flex;align-items:center;gap:10px">'
-                f'<span style="background:{BLACK};color:#fff;font-weight:900;font-size:19px;'
-                f'border-radius:10px;min-width:44px;text-align:center;padding:8px 0">{p_sel.number}</span>'
-                f'<div><div style="font-weight:900;font-size:17px">{p_sel.name}</div>'
-                f'<div style="font-size:11px;color:{RED};font-weight:800">{p_sel.position}</div></div></div>'
-                f'<div style="font-size:12.5px;color:{GRAY};margin-top:8px">'
-                f'現在オフライン表示のため経歴データを取得できません。以下からご覧ください。</div>'
-                f'<div style="margin-top:6px;font-size:12.5px;line-height:2">'
-                f'<a href="https://www.google.com/search?q={p_sel.name}+コンサドーレ+経歴+成績" '
-                f'target="_blank" style="color:{RED};font-weight:700;text-decoration:none">'
-                f'経歴・成績を検索 →</a><br>'
-                f'<a href="https://www.consadole-sapporo.jp/team/topteam/" target="_blank" '
-                f'style="color:{RED};font-weight:700;text-decoration:none">公式サイトの選手一覧 →</a></div>'
-            ), unsafe_allow_html=True)
+                if det.get("birth") or det.get("career"):
+                    age = ""
+                    if det.get("birth"):
+                        b = datetime.strptime(det["birth"], "%Y-%m-%d").date()
+                        t = date.today()
+                        a = t.year - b.year - ((t.month, t.day) < (b.month, b.day))
+                        age = f"({a}歳)"
+                    rows = ""
+                    for label, key, suffix in [("生年月日", "birth", f" {age}"),
+                                               ("身長/体重", "body", ""),
+                                               ("受賞歴", "awards", ""),
+                                               ("代表歴", "natl", "")]:
+                        if det.get(key):
+                            rows += (f'<tr><td style="color:{GRAY};font-weight:700;width:76px;'
+                                     f'padding:4px 0;vertical-align:top">{label}</td>'
+                                     f'<td>{det[key]}{suffix}</td></tr>')
+                    career_html = ""
+                    if det.get("career"):
+                        steps = det["career"].replace("−", "-").split("-")
+                        chain = ' <span style="color:' + RED + '">→</span> '.join(
+                            s.strip() for s in steps if s.strip())
+                        career_html = (f'<div style="font-size:11px;color:{GRAY};font-weight:700;'
+                                       f'margin-top:8px">経歴</div>'
+                                       f'<div style="font-size:12.5px;line-height:1.9">{chain}</div>')
+                    news_html = ""
+                    if det.get("news"):
+                        items = "".join(
+                            f'<div style="font-size:12px;padding:3px 0;border-top:1px solid #eef0f2">'
+                            f'<span style="color:{GRAY}">{n["date"]}</span> {n["title"]}</div>'
+                            for n in det["news"])
+                        news_html = (f'<div style="font-size:11px;color:{GRAY};font-weight:700;'
+                                     f'margin-top:8px">関連ニュース</div>{items}')
+                    detail_html = (head_html
+                                   + f'<table style="width:100%;font-size:12.5px;'
+                                   f'border-collapse:collapse;margin-top:8px">{rows}</table>'
+                                   + career_html + news_html + links_html)
+            except Exception:
+                pass
+        # ルート2: Wikipedia要約(ゲキサカ不通時の予備)
+        if detail_html is None:
+            try:
+                with st.spinner("経歴を取得中…"):
+                    wiki = cached_player_wiki(p_sel.name)
+            except Exception:
+                wiki = {}
+            if wiki.get("extract"):
+                wiki_link = (f'<a href="{wiki["wiki_url"]}" target="_blank" '
+                             f'style="color:{RED};font-size:12px;font-weight:700;'
+                             f'text-decoration:none">Wikipediaで続きを読む →</a>'
+                             if wiki.get("wiki_url") else "")
+                detail_html = (head_html
+                               + f'<div style="font-size:13px;line-height:1.9;margin-top:8px">'
+                               f'{wiki["extract"]}</div>{wiki_link}{links_html}')
+        # ルート3: リンク集(最終手段)
+        if detail_html is None:
+            detail_html = (head_html
+                           + f'<div style="font-size:12.5px;color:{GRAY};margin-top:8px">'
+                           f'経歴データを取得できませんでした。以下からご覧ください。</div>'
+                           + links_html)
+        st.markdown(card(detail_html), unsafe_allow_html=True)
+
+    # --- 名簿(タップで詳細を開く) ---
     for pos, label in [("GK", "ゴールキーパー"), ("DF", "ディフェンダー"),
                        ("MF", "ミッドフィールダー"), ("FW", "フォワード")]:
-        group = [p for p in players if p.position == pos]
-        if not group:
+        idx = [i for i, p in enumerate(players) if p.position == pos]
+        if not idx:
             continue
-        chips = "".join(
-            f'<div style="display:flex;align-items:center;gap:8px;background:#fff;'
-            f'border-radius:10px;padding:8px 10px;box-shadow:0 1px 3px rgba(23,24,27,.08)">'
-            f'<span style="background:{BLACK};color:#fff;font-weight:900;font-size:13px;'
-            f'border-radius:8px;min-width:30px;text-align:center;padding:4px 0">{p.number}</span>'
-            f'<span style="font-weight:700;font-size:13.5px">{p.name}</span></div>'
-            for p in group
-        )
         st.markdown(
-            f'<div style="margin:10px 0 6px"><span style="background:{RED};color:#fff;'
+            f'<div style="margin:10px 0 4px"><span style="background:{RED};color:#fff;'
             f'font-size:11px;font-weight:900;border-radius:4px;padding:3px 10px">{pos}</span> '
-            f'<span style="font-size:12px;color:{GRAY};font-weight:700">{label}({len(group)}名)</span></div>'
-            f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">{chips}</div>',
+            f'<span style="font-size:12px;color:{GRAY};font-weight:700">{label}({len(idx)}名)</span></div>',
             unsafe_allow_html=True,
         )
+        for row_start in range(0, len(idx), 2):
+            cols = st.columns(2)
+            for col, i in zip(cols, idx[row_start:row_start + 2]):
+                p = players[i]
+                if col.button(f"{p.number}  {p.name}", key=f"pl_{i}",
+                              use_container_width=True):
+                    st.session_state.sel_player = i
+                    st.rerun()
 
 # ============ 分析 ============
 with tabs[5]:

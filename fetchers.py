@@ -388,3 +388,22 @@ def fetch_standings() -> tuple[list[StandingRow], bool]:
     except Exception:
         pass
     return [], False
+
+
+def fetch_player_wiki(name: str) -> dict:
+    """Wikipediaの要約API(構造が安定)から選手の人物紹介を取得する。"""
+    from urllib.parse import quote
+    res = requests.get(
+        f"https://ja.wikipedia.org/api/rest_v1/page/summary/{quote(name)}",
+        headers=UA, timeout=TIMEOUT,
+    )
+    res.raise_for_status()
+    data = res.json()
+    extract = data.get("extract", "")
+    # 同名の別人ページを避ける(サッカー関係の記述があるものだけ採用)
+    if "サッカー" not in extract and "フットボール" not in extract:
+        return {}
+    return {
+        "extract": extract,
+        "wiki_url": data.get("content_urls", {}).get("mobile", {}).get("page", ""),
+    }

@@ -31,14 +31,23 @@ class NewsItem:
 
 
 def fetch_news(query: str = "コンサドーレ札幌", limit: int = 10) -> list[NewsItem]:
-    """Google News RSSから最新ニュースを取得する。"""
+    """Google News RSSから最新ニュースを取得する(新しい順にソート)。"""
+    import calendar
+    from datetime import datetime, timezone, timedelta
+    JST = timezone(timedelta(hours=9))
     url = (
         "https://news.google.com/rss/search?"
         f"q={quote(query)}&hl=ja&gl=JP&ceid=JP:ja"
     )
     feed = feedparser.parse(url)
+    # 公開日時の新しい順に並べ替え(RSSの並びは必ずしも新着順ではない)
+    entries = sorted(
+        feed.entries,
+        key=lambda e: e.get("published_parsed") or (0,) * 9,
+        reverse=True,
+    )
     items: list[NewsItem] = []
-    for e in feed.entries[:limit]:
+    for e in entries[:limit]:
         # タイトル末尾の「 - 媒体名」を分離
         title = e.get("title", "")
         source = ""
@@ -47,11 +56,12 @@ def fetch_news(query: str = "コンサドーレ札幌", limit: int = 10) -> list
             title, source = m.group(1).strip(), m.group(2).strip()
         if not source:
             source = getattr(getattr(e, "source", None), "title", "") or "ニュース"
-        # 日付を「7月4日」形式に
+        # UTCの公開日時を日本時間に変換して「7月5日 18:30」形式に
         date = ""
         if getattr(e, "published_parsed", None):
-            t = e.published_parsed
-            date = f"{t.tm_mon}月{t.tm_mday}日"
+            ts = calendar.timegm(e.published_parsed)
+            jt = datetime.fromtimestamp(ts, tz=JST)
+            date = f"{jt.month}月{jt.day}日 {jt:%H:%M}"
         items.append(NewsItem(title=title, source=source, date=date, url=e.get("link", "")))
     return items
 

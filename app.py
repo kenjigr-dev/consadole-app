@@ -1,12 +1,23 @@
 """コンサ情報ボード — マッチデー中心設計・iPhone最適化"""
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
 import streamlit as st
 
 from fetchers import (SNAPSHOT_DATE, fetch_news, fetch_players,
                       fetch_schedule, fetch_standings)
+
+JST = timezone(timedelta(hours=9))
+
+
+def now_jst() -> datetime:
+    """日本時間の現在時刻(サーバーはUTCで動くため必ずこれを使う)"""
+    return datetime.now(JST)
+
+
+def today_jst() -> date:
+    return now_jst().date()
 
 # ============ 静的データ(2026-07-04時点) ============
 SEASON_SP = [
@@ -68,6 +79,11 @@ div[data-baseweb="tab-border"] {display: none !important;}
 div.stButton > button {border: 1px solid #272A31 !important; border-radius: 12px !important;
   background: #191B20 !important; color: #F2F3F5 !important; font-weight: 700 !important;}
 div.stButton > button:hover {border-color: #E8112D !important; color: #FF6B81 !important;}
+/* 選手ボタン(key=pl_*)は大きく・太く・背番号を強調 */
+div[class*="st-key-pl_"] button {padding: 13px 6px !important; min-height: 52px !important;
+  border-left: 3px solid #E8112D !important;}
+div[class*="st-key-pl_"] button p {font-size: 16px !important; font-weight: 900 !important;
+  letter-spacing: .02em !important;}
 [data-testid="stDataFrame"] {font-size: 13px;}
 h3 {font-size: 1.0rem !important; margin: 0.5rem 0 0.4rem !important; color: #F2F3F5;}
 </style>
@@ -145,13 +161,13 @@ tabs = st.tabs(["ホーム", "ニュース", "日程", "順位表", "選手", "�
 
 @st.cache_data(ttl=300, show_spinner=False)
 def cached_news():
-    return fetch_news(limit=10), datetime.now()
+    return fetch_news(limit=10), now_jst()
 
 
 @st.cache_data(ttl=300, show_spinner=False)
 def cached_schedule():
     s, live = fetch_schedule()
-    return s, live, datetime.now()
+    return s, live, now_jst()
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -175,7 +191,7 @@ def get_schedule_safe():
 # ============ ホーム ============
 with tabs[0]:
     sched, s_live, _ = get_schedule_safe()
-    today = date.today()
+    today = today_jst()
 
     # --- 次の試合(マッチデーカード) ---
     next_m, next_d = None, None
@@ -224,6 +240,57 @@ with tabs[0]:
             f'<span style="color:{GRAY};font-size:11px;font-weight:700"> 日</span></div></div>',
             pad="10px 15px",
         ), unsafe_allow_html=True)
+
+    # --- 次節 予想スタメン(フォーメーション表示) ---
+    st.markdown(section_label("次節 予想スタメン", "PREDICTED XI — AI予想"), unsafe_allow_html=True)
+    PREDICTED_XI = [  # (背番号, 名前, 横位置%, 縦位置%) 上が敵陣
+        ("20", "バカヨコ", 50, 12),
+        ("7", "スパチョーク", 16, 31), ("11", "青木亮太", 50, 29), ("71", "白井陽斗", 84, 31),
+        ("27", "荒野拓馬", 36, 51), ("18", "木戸柊摩", 64, 51),
+        ("5", "福森晃斗", 13, 70), ("25", "大崎玲央", 37, 74),
+        ("3", "パク・ミンギュ", 63, 74), ("2", "高尾瑠", 87, 70),
+        ("24", "田川知樹", 50, 90),
+    ]
+    chips = ""
+    for num, name, x, y in PREDICTED_XI:
+        chips += (
+            f'<div style="position:absolute;left:{x}%;top:{y}%;'
+            f'transform:translate(-50%,-50%);text-align:center;width:76px">'
+            f'<div class="score-num" style="width:30px;height:30px;line-height:30px;'
+            f'margin:0 auto;border-radius:50%;background:{GRAD_RED};color:#fff;'
+            f'font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.5);'
+            f'border:1.5px solid rgba(255,255,255,.7)">{num}</div>'
+            f'<div style="font-size:10px;font-weight:800;color:#fff;margin-top:2px;'
+            f'text-shadow:0 1px 3px rgba(0,0,0,.9);line-height:1.2">{name}</div></div>'
+        )
+    pitch = (
+        f'<div class="rise" style="position:relative;height:400px;border-radius:16px;'
+        f'overflow:hidden;border:1px solid {CARD_BD};margin-bottom:8px;'
+        f'background:repeating-linear-gradient(180deg,#11592d 0 50px,#0e4d27 50px 100px)">'
+        # ピッチの線
+        f'<div style="position:absolute;inset:8px;border:1.5px solid rgba(255,255,255,.35);'
+        f'border-radius:4px"></div>'
+        f'<div style="position:absolute;left:50%;top:8px;transform:translateX(-50%);'
+        f'width:90px;height:45px;border:1.5px solid rgba(255,255,255,.3);'
+        f'border-top:none;border-radius:0 0 60px 60px"></div>'
+        f'<div style="position:absolute;left:50%;bottom:8px;transform:translateX(-50%);'
+        f'width:170px;height:58px;border:1.5px solid rgba(255,255,255,.35);border-bottom:none"></div>'
+        f'<div style="position:absolute;left:50%;bottom:8px;transform:translateX(-50%);'
+        f'width:80px;height:26px;border:1.5px solid rgba(255,255,255,.35);border-bottom:none"></div>'
+        f'<div style="position:absolute;left:12px;top:12px;background:rgba(0,0,0,.55);'
+        f'border-radius:8px;padding:4px 10px;font-size:10px;font-weight:800;color:#fff">'
+        f'4-2-3-1 <span style="color:{PINK}">/ 監督 川井健太</span></div>'
+        + chips + '</div>'
+    )
+    st.markdown(pitch, unsafe_allow_html=True)
+    st.markdown(card(
+        f'<div style="font-size:11.5px;color:{GRAY};line-height:1.8">'
+        f'<b style="color:{PINK}">予想の根拠:</b> 2026特別シーズンの実績スタメンをベースに、'
+        f'家泉怜依の退団(→大崎玲央)、マリオ・セルジオの負傷離脱を反映。'
+        f'西野奨太・堀米悠斗・ジョルディ・サンチェスらが割って入る候補。'
+        f'※AIによる予想であり公式発表ではありません。</div>',
+        pad="10px 14px",
+    ), unsafe_allow_html=True)
 
     # --- チーム状態(フォーム+総括) ---
     st.markdown(section_label("チーム状態"), unsafe_allow_html=True)
@@ -297,10 +364,24 @@ with tabs[2]:
     sched, live, at = get_schedule_safe()
     st.caption(f"公式サイトからライブ取得({at:%H:%M})" if live
                else f"{SNAPSHOT_DATE}時点の確定日程")
+    TICKET_URL = "https://www.consadole-sapporo.jp/ticket/"
+    st.markdown(
+        f'<a href="{TICKET_URL}" target="_blank" style="text-decoration:none">'
+        f'<div class="rise" style="background:{GRAD_RED};border-radius:14px;padding:11px 15px;'
+        f'margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;'
+        f'box-shadow:0 2px 14px rgba(232,17,45,.4)">'
+        f'<span style="color:#fff;font-weight:900;font-size:14px">🎫 チケットを購入する</span>'
+        f'<span style="color:#fff;font-size:12px;opacity:.9">公式チケットページ →</span></div></a>',
+        unsafe_allow_html=True,
+    )
     for m in sched:
         ha_label = "H" if m.home_away == "H" else "A"
         ha_color = RED if m.home_away == "H" else GRAY
         res_color = "#FF3B55" if m.result != "予定" else GRAY
+        ticket = ""
+        if m.home_away == "H" and m.result == "予定":
+            ticket = (f' <a href="{TICKET_URL}" target="_blank" style="color:{PINK};'
+                      f'font-size:10.5px;font-weight:800;text-decoration:none">🎫チケット</a>')
         st.markdown(card(
             f'<div style="display:flex;align-items:center;gap:10px">'
             f'<div style="min-width:76px"><b style="font-size:13px">{m.date}</b><br>'
@@ -308,7 +389,7 @@ with tabs[2]:
             f'<span style="background:{ha_color};color:#fff;font-weight:900;font-size:12px;'
             f'border-radius:6px;padding:3px 8px">{ha_label}</span>'
             f'<div style="flex:1"><b style="font-size:15px">{m.opponent}</b><br>'
-            f'<span style="font-size:10.5px;color:{GRAY}">{m.venue}</span></div>'
+            f'<span style="font-size:10.5px;color:{GRAY}">{m.venue}</span>{ticket}</div>'
             f'<div style="text-align:right;font-weight:800;color:{res_color};min-width:52px">'
             f"{m.result}<br><span style='font-size:11px;color:{GRAY};font-weight:400'>{m.kickoff}</span></div></div>",
             pad="10px 12px", mb="8px",
@@ -400,7 +481,7 @@ with tabs[4]:
                     age = ""
                     if det.get("birth"):
                         b = datetime.strptime(det["birth"], "%Y-%m-%d").date()
-                        t = date.today()
+                        t = today_jst()
                         a = t.year - b.year - ((t.month, t.day) < (b.month, b.day))
                         age = f"({a}歳)"
                     rows = ""
@@ -482,13 +563,46 @@ with tabs[4]:
             cols = st.columns(2)
             for col, i in zip(cols, idx[row_start:row_start + 2]):
                 p = players[i]
-                if col.button(f"{p.number}  {p.name}", key=f"pl_{i}",
+                if col.button(f":red[{p.number}]  **{p.name}**", key=f"pl_{i}",
                               width="stretch"):
                     show_player(p)
 
 # ============ 分析 ============
 with tabs[5]:
-    st.markdown("### アナリストの視点(2026特別シーズン)")
+    st.markdown("### アナリストの視点")
+
+    # --- クラブの現在地(複数年の文脈) ---
+    st.markdown(card(
+        f'<b style="font-size:13.5px;color:{PINK}">クラブの現在地 — 再建2年目の勝負</b>'
+        f'<div style="font-size:12.5px;line-height:1.9;margin-top:6px">'
+        f'2017〜24年に<b>8季連続でJ1に在籍</b>したが、2024年に19位で降格。'
+        f'昇格を狙った2025年は<b>12位(16勝5分17敗・50得点63失点)</b>と失速し、'
+        f'長期政権だったミシャ式攻撃サッカーからの転換を迫られた。'
+        f'2026年、鳥栖などを指揮した<b style="color:{RED}">川井健太監督</b>が就任(1年目)。'
+        f'ボールを保持しつつ守備を作り直す路線で、特別シーズン後半に手応えを掴んだ。'
+        f'秋春制元年の2026/27は<b>「1年でのJ1復帰」</b>が至上命題となる。</div>'
+    ), unsafe_allow_html=True)
+
+    # --- 昨季との比較(1試合平均) ---
+    SP_GF = sum(int(m[3].split(" ")[0].split("-")[0]) for m in SEASON_SP)
+    SP_GA = sum(int(m[3].split(" ")[0].split("-")[1]) for m in SEASON_SP)
+    SP_PTS = sum(PTS[m[4]] for m in SEASON_SP)
+    N = len(SEASON_SP)
+    Y25 = {"pts": 53, "gp": 38, "gf": 50, "ga": 63}  # 2025年J2実績
+    st.markdown(card(
+        f'<b style="font-size:13.5px">昨季2025 → 2026特別シーズンの変化(1試合平均)</b>'
+        f'<table style="width:100%;font-size:13px;margin-top:6px;border-collapse:collapse;text-align:center">'
+        f'<tr style="color:{GRAY};font-size:11px"><td></td><td>勝点</td><td>得点</td><td>失点</td></tr>'
+        f'<tr><td style="text-align:left;font-weight:700">2025(J2・12位)</td>'
+        f'<td>{Y25["pts"]/Y25["gp"]:.2f}</td><td>{Y25["gf"]/Y25["gp"]:.2f}</td>'
+        f'<td>{Y25["ga"]/Y25["gp"]:.2f}</td></tr>'
+        f'<tr style="color:{RED};font-weight:800"><td style="text-align:left">2026特別(川井体制)</td>'
+        f'<td>{SP_PTS/N:.2f}</td><td>{SP_GF/N:.2f}</td><td>{SP_GA/N:.2f}</td></tr></table>'
+        f'<div style="font-size:12px;color:{GRAY};margin-top:6px">'
+        f'最大の変化は<b style="color:{TXT}">守備(失点{Y25["ga"]/Y25["gp"]:.2f}→{SP_GA/N:.2f})</b>。'
+        f'昨季の「打ち合って失速」から、完封{sum(1 for m in SEASON_SP if int(m[3].split(" ")[0].split("-")[1]) == 0)}試合の'
+        f'「勝ち切れるチーム」へ体質が変わりつつある。</div>'
+    ), unsafe_allow_html=True)
 
     # 前半戦 vs 後半戦
     def summarize(ms):
@@ -565,4 +679,4 @@ with tabs[5]:
     )
     st.caption("J2優勝3回(2000・2007・2016)/ J1最高4位(2018)/ 2017〜24年に8季連続J1在籍")
 
-st.caption("コンサ情報ボード v2.1 — Stadium Night Edition")
+st.caption("コンサ情報ボード v2.2 — Stadium Night Edition")

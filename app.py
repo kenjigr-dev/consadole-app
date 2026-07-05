@@ -27,50 +27,71 @@ HISTORY = [
     (2017, "J1", 11), (2016, "J2", 1), (2015, "J2", 10), (2014, "J2", 10),
 ]
 KICKOFF_DATE = date(2026, 8, 8)
-RED, BLACK, GRAY, PINK = "#C8102E", "#17181B", "#7a7f88", "#E8899A"
+RED, BLACK, GRAY, PINK = "#E8112D", "#17181B", "#9aa0ab", "#FF6B81"
+BG, CARD_BG, CARD_BD, TXT = "#0D0E11", "#191B20", "#272A31", "#F2F3F5"
+GRAD_RED = "linear-gradient(135deg,#E8112D 0%,#8f0a1d 100%)"
 PTS = {"勝": 3, "PK勝": 2, "PK負": 1, "負": 0}
-RESULT_DOT = {"勝": ("○", RED), "PK勝": ("○", PINK), "PK負": ("●", "#B9BDC4"), "負": ("●", BLACK)}
+RESULT_DOT = {"勝": ("W", "#FF3B55"), "PK勝": ("W", PINK), "PK負": ("L", "#7d8494"), "負": ("L", "#4a4f59")}
 
 st.set_page_config(page_title="コンサドーレ情報ボード", page_icon="⚽", layout="centered")
 
 st.markdown("""
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Anton&display=swap');
 .block-container {padding: 0.5rem 0.85rem 3rem !important; max-width: 640px;}
-/* Streamlitの標準UI(ヘッダー・メニュー・バッジ類)を完全に隠す */
+/* Streamlitの標準UIを隠す */
 header[data-testid="stHeader"] {display: none !important;}
-div[data-testid="stToolbar"] {display: none !important;}
-div[data-testid="stDecoration"] {display: none !important;}
+div[data-testid="stToolbar"], div[data-testid="stDecoration"],
 div[data-testid="stStatusWidget"] {display: none !important;}
 #MainMenu {visibility: hidden !important;}
 footer {display: none !important;}
 div[class^="viewerBadge"], div[class*=" viewerBadge"] {display: none !important;}
 .stAppDeployButton {display: none !important;}
-button[data-baseweb="tab"] {font-size: 14px !important; font-weight: 800 !important;
-  padding: 8px 9px !important;}
-button[data-baseweb="tab"][aria-selected="true"] {color: #C8102E !important;}
-div[data-baseweb="tab-highlight"] {background-color: #C8102E !important;}
+/* タブ: スタジアムの電光掲示板風 */
+div[data-baseweb="tab-list"] {gap: 2px; background: #14161a; border-radius: 12px;
+  padding: 4px;}
+button[data-baseweb="tab"] {font-size: 13.5px !important; font-weight: 800 !important;
+  padding: 9px 8px !important; border-radius: 9px !important; color: #9aa0ab !important;}
+button[data-baseweb="tab"][aria-selected="true"] {color: #fff !important;
+  background: linear-gradient(135deg,#E8112D,#8f0a1d) !important;
+  box-shadow: 0 2px 10px rgba(232,17,45,.45);}
+div[data-baseweb="tab-highlight"] {display: none !important;}
+div[data-baseweb="tab-border"] {display: none !important;}
+/* 数字はスコアボード書体 */
+.score-num {font-family: 'Anton', sans-serif; letter-spacing: .02em;}
+/* カードの登場アニメーション */
+@keyframes rise {from {opacity: 0; transform: translateY(8px);} to {opacity: 1; transform: none;}}
+@keyframes pulse {0%,100% {box-shadow: 0 0 24px rgba(232,17,45,.35);}
+  50% {box-shadow: 0 0 44px rgba(232,17,45,.65);}}
+.rise {animation: rise .45s ease both;}
+/* ボタン */
+div.stButton > button {border: 1px solid #272A31 !important; border-radius: 12px !important;
+  background: #191B20 !important; color: #F2F3F5 !important; font-weight: 700 !important;}
+div.stButton > button:hover {border-color: #E8112D !important; color: #FF6B81 !important;}
 [data-testid="stDataFrame"] {font-size: 13px;}
-h3 {font-size: 1.02rem !important; border-left: 4px solid #C8102E;
-  padding-left: 9px; margin: 0.5rem 0 0.4rem !important;}
+h3 {font-size: 1.0rem !important; margin: 0.5rem 0 0.4rem !important; color: #F2F3F5;}
 </style>
 """, unsafe_allow_html=True)
 
 
 # ============ 部品 ============
-def card(html, pad="12px 14px", mb="10px"):
-    return (f'<div style="background:#fff;border-radius:12px;padding:{pad};'
-            f'margin-bottom:{mb};box-shadow:0 1px 3px rgba(23,24,27,.08)">{html}</div>')
+def card(html, pad="13px 15px", mb="10px", glow=False):
+    extra = "animation:pulse 3s ease-in-out infinite;" if glow else ""
+    return (f'<div class="rise" style="background:{CARD_BG};border:1px solid {CARD_BD};'
+            f'border-radius:16px;padding:{pad};margin-bottom:{mb};{extra}">{html}</div>')
 
 
 def stat_grid(pairs, accent_first=True):
     cells = ""
     for i, (label, value) in enumerate(pairs):
-        color = RED if (accent_first and i == 0) else BLACK
-        cells += (f'<div style="flex:1;text-align:center;padding:6px 2px">'
-                  f'<div style="font-size:25px;font-weight:900;color:{color};line-height:1.1">{value}</div>'
-                  f'<div style="font-size:10.5px;color:{GRAY};font-weight:700;margin-top:2px">{label}</div></div>')
-    return (f'<div style="display:flex;background:#fff;border-radius:12px;'
-            f'padding:7px 4px;box-shadow:0 1px 3px rgba(23,24,27,.08);margin-bottom:10px">{cells}</div>')
+        color = "#FF3B55" if (accent_first and i == 0) else TXT
+        top = RED if (accent_first and i == 0) else CARD_BD
+        cells += (f'<div style="flex:1;text-align:center;padding:9px 2px;background:{CARD_BG};'
+                  f'border:1px solid {CARD_BD};border-top:3px solid {top};border-radius:12px">'
+                  f'<div class="score-num" style="font-size:29px;color:{color};line-height:1.05">{value}</div>'
+                  f'<div style="font-size:10px;color:{GRAY};font-weight:800;letter-spacing:.08em;'
+                  f'margin-top:3px">{label}</div></div>')
+    return f'<div class="rise" style="display:flex;gap:6px;margin-bottom:10px">{cells}</div>'
 
 
 def form_dots(results, size=15):
@@ -78,7 +99,9 @@ def form_dots(results, size=15):
     dots = ""
     for r in results:
         ch, color = RESULT_DOT[r]
-        dots += f'<span style="color:{color};font-size:{size}px;font-weight:900;margin:0 2px">{ch}</span>'
+        dots += (f'<span class="score-num" style="display:inline-block;width:22px;height:22px;'
+                 f'line-height:22px;text-align:center;border-radius:6px;margin:0 2px;'
+                 f'background:{color};color:#0D0E11;font-size:13px">{ch}</span>')
     return dots
 
 
@@ -95,9 +118,11 @@ def parse_jp_date(s, base_year=2026):
         return None
 
 
-def section_label(text):
-    return (f'<div style="margin:12px 0 6px;font-size:14px;font-weight:900;color:{BLACK};'
-            f'border-left:4px solid {RED};padding-left:9px">{text}</div>')
+def section_label(text, en=""):
+    eyebrow = (f'<div style="font-size:9.5px;letter-spacing:.3em;color:{RED};'
+               f'font-weight:800">{en}</div>' if en else "")
+    return (f'<div style="margin:16px 0 8px">{eyebrow}'
+            f'<div style="font-size:15px;font-weight:900;color:{TXT}">{text}</div></div>')
 
 
 # ============ ヘッダー ============
@@ -105,13 +130,16 @@ stripe = "".join(f'<span style="display:inline-block;width:4.16%;height:8px;'
                  f'background:{RED if i % 2 else BLACK}"></span>' for i in range(24))
 st.markdown(
     f'<div style="font-size:0;line-height:0">{stripe}</div>'
-    f'<div style="background:{BLACK};padding:10px 14px;border-radius:0 0 12px 12px;margin-bottom:8px;'
+    f'<div style="background:linear-gradient(180deg,#191B20,#0D0E11);'
+    f'border:1px solid {CARD_BD};border-top:none;padding:12px 15px;'
+    f'border-radius:0 0 16px 16px;margin-bottom:10px;'
     f'display:flex;justify-content:space-between;align-items:center">'
-    f'<div><div style="color:{RED};font-size:9px;letter-spacing:.2em;font-weight:800">'
+    f'<div><div style="color:{RED};font-size:9px;letter-spacing:.28em;font-weight:800">'
     f'HOKKAIDO CONSADOLE SAPPORO</div>'
-    f'<div style="color:#fff;font-size:18px;font-weight:900">コンサドーレ情報ボード</div></div>'
-    f'<div style="text-align:right;color:#B9BDC4;font-size:10px">{date.today():%-m/%-d}<br>'
-    f'<span style="color:#fff;font-weight:800">2026/27</span></div></div>',
+    f'<div style="color:{TXT};font-size:19px;font-weight:900;letter-spacing:.02em">'
+    f'コンサドーレ<span style="color:{RED}">情報ボード</span></div></div>'
+    f'<div style="text-align:right;color:{GRAY};font-size:10px">{date.today():%-m/%-d}<br>'
+    f'<span class="score-num" style="color:{TXT};font-size:14px">2026/27</span></div></div>',
     unsafe_allow_html=True,
 )
 
@@ -164,19 +192,26 @@ with tabs[0]:
         when = "本日!" if dd == 0 else f"あと{dd}日"
         ha = "ホーム" if next_m.home_away == "H" else "アウェイ"
         st.markdown(
-            f'<div style="background:{BLACK};border-radius:14px;padding:14px;color:#fff;'
-            f'margin-bottom:10px;position:relative;overflow:hidden">'
+            f'<div class="rise" style="background:linear-gradient(135deg,#22060b 0%,#191B20 55%);'
+            f'border:1px solid #3a1218;border-radius:18px;padding:16px 15px;color:{TXT};'
+            f'margin-bottom:10px;position:relative;overflow:hidden;'
+            f'animation:pulse 3.2s ease-in-out infinite">'
             f'<div style="position:absolute;top:0;left:0;right:0;height:4px;background:'
-            f'repeating-linear-gradient(90deg,{RED} 0 20px,{BLACK} 20px 40px)"></div>'
-            f'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:3px">'
-            f'<span style="color:{PINK};font-size:10px;font-weight:800;letter-spacing:.15em">NEXT MATCH'
-            f' <span style="color:#B9BDC4">/ {next_m.comp}</span></span>'
-            f'<span style="background:{RED};border-radius:20px;padding:2px 11px;font-size:12px;'
-            f'font-weight:900">{when}</span></div>'
-            f'<div style="font-size:23px;font-weight:900;margin-top:6px">vs {next_m.opponent}'
-            f'<span style="font-size:12px;color:{PINK};font-weight:800;margin-left:8px">{ha}</span></div>'
-            f'<div style="font-size:12.5px;color:#B9BDC4;margin-top:3px">'
-            f'{next_m.date} {next_m.kickoff} <br>{next_m.venue}</div></div>',
+            f'repeating-linear-gradient(90deg,{RED} 0 22px,transparent 22px 44px)"></div>'
+            f'<div style="position:absolute;right:-30px;top:-30px;width:130px;height:130px;'
+            f'border-radius:50%;background:radial-gradient(circle,rgba(232,17,45,.28),transparent 70%)"></div>'
+            f'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">'
+            f'<span style="color:{PINK};font-size:10px;font-weight:800;letter-spacing:.22em">NEXT MATCH'
+            f' <span style="color:{GRAY};letter-spacing:0">/ {next_m.comp}</span></span>'
+            f'<span class="score-num" style="background:{GRAD_RED};border-radius:20px;'
+            f'padding:3px 13px;font-size:13px;box-shadow:0 2px 12px rgba(232,17,45,.5)">{when}</span></div>'
+            f'<div style="margin-top:10px;display:flex;align-items:baseline;gap:10px">'
+            f'<span class="score-num" style="font-size:21px;color:{TXT}">札幌</span>'
+            f'<span class="score-num" style="font-size:15px;color:{RED}">VS</span>'
+            f'<span class="score-num" style="font-size:30px;color:{TXT}">{next_m.opponent}</span>'
+            f'<span style="font-size:11px;color:{PINK};font-weight:800">{ha}</span></div>'
+            f'<div style="font-size:12px;color:{GRAY};margin-top:6px">'
+            f'{next_m.date} {next_m.kickoff}<br>{next_m.venue}</div></div>',
             unsafe_allow_html=True,
         )
 
@@ -185,10 +220,12 @@ with tabs[0]:
     if days > 0:
         st.markdown(card(
             f'<div style="display:flex;justify-content:space-between;align-items:center">'
-            f'<div style="font-size:12.5px;font-weight:700;color:{BLACK}">'
-            f'J2リーグ開幕 <span style="color:{GRAY}">8/8(土) 14:45 vs 徳島</span></div>'
-            f'<div style="font-weight:900;color:{RED};font-size:16px">あと{days}日</div></div>',
-            pad="10px 14px",
+            f'<div style="font-size:12.5px;font-weight:700;color:{TXT}">'
+            f'J2リーグ開幕<br><span style="color:{GRAY};font-size:11px">8/8(土) 14:45 vs 徳島</span></div>'
+            f'<div style="text-align:right"><span class="score-num" style="color:#FF3B55;'
+            f'font-size:34px;line-height:1">{days}</span>'
+            f'<span style="color:{GRAY};font-size:11px;font-weight:700"> 日</span></div></div>',
+            pad="10px 15px",
         ), unsafe_allow_html=True)
 
     # --- チーム状態(フォーム+総括) ---
@@ -225,9 +262,9 @@ with tabs[0]:
     st.markdown(section_label("リンク"), unsafe_allow_html=True)
     st.markdown(card(
         f'<div style="font-size:13px;line-height:2.1">'
-        f'<a href="https://www.consadole-sapporo.jp/" target="_blank" style="color:{BLACK};font-weight:700">公式サイト →</a><br>'
-        f'<a href="https://www.jleague.jp/club/sapporo/" target="_blank" style="color:{BLACK};font-weight:700">Jリーグ公式・札幌ページ →</a><br>'
-        f'<a href="https://www.football-lab.jp/sapp" target="_blank" style="color:{BLACK};font-weight:700">Football LAB(データ分析) →</a></div>'
+        f'<a href="https://www.consadole-sapporo.jp/" target="_blank" style="color:{TXT};font-weight:700">公式サイト →</a><br>'
+        f'<a href="https://www.jleague.jp/club/sapporo/" target="_blank" style="color:{TXT};font-weight:700">Jリーグ公式・札幌ページ →</a><br>'
+        f'<a href="https://www.football-lab.jp/sapp" target="_blank" style="color:{TXT};font-weight:700">Football LAB(データ分析) →</a></div>'
     ), unsafe_allow_html=True)
 
 # ============ ニュース ============
@@ -242,11 +279,11 @@ with tabs[1]:
         st.caption(f"リアルタイム取得 {at:%H:%M}(5分ごと自動更新)")
         for n in news:
             st.markdown(card(
-                f'<span style="background:{BLACK};color:#fff;font-size:10px;font-weight:800;'
-                f'border-radius:4px;padding:2px 7px">{n.source}</span> '
+                f'<span style="background:{GRAD_RED};color:#fff;font-size:10px;font-weight:800;'
+                f'border-radius:5px;padding:2px 8px">{n.source}</span> '
                 f'<span style="color:{GRAY};font-size:11px">{n.date}</span>'
-                f'<div style="font-weight:800;font-size:14px;margin-top:5px;line-height:1.55">'
-                f'<a href="{n.url}" target="_blank" style="color:{BLACK};text-decoration:none">{n.title}</a></div>'
+                f'<div style="font-weight:800;font-size:14px;margin-top:6px;line-height:1.6">'
+                f'<a href="{n.url}" target="_blank" style="color:{TXT};text-decoration:none">{n.title}</a></div>'
             ), unsafe_allow_html=True)
     except Exception:
         st.error("ニュースの取得に失敗しました。通信環境を確認して「更新」を押してください。")
@@ -265,7 +302,7 @@ with tabs[2]:
         is_next = (m is (next_m if 'next_m' in dir() else None))
         ha_label = "H" if m.home_away == "H" else "A"
         ha_color = RED if m.home_away == "H" else GRAY
-        res_color = RED if m.result != "予定" else "#555"
+        res_color = "#FF3B55" if m.result != "予定" else GRAY
         st.markdown(card(
             f'<div style="display:flex;align-items:center;gap:10px">'
             f'<div style="min-width:76px"><b style="font-size:13px">{m.date}</b><br>'
@@ -298,7 +335,7 @@ with tabs[3]:
         } for r in rows])
         sap = df["クラブ"].str.contains("札幌")
         st.dataframe(
-            df.style.apply(lambda x: ["background-color:#fdeaec" if sap.iloc[i] else ""
+            df.style.apply(lambda x: ["background-color:#3a1218" if sap.iloc[i] else ""
                                       for i in range(len(x))], axis=0),
             use_container_width=True, hide_index=True,
         )
@@ -342,7 +379,7 @@ with tabs[4]:
         diag = []
         head_html = (
             f'<div style="display:flex;align-items:center;gap:10px">'
-            f'<span style="background:{BLACK};color:#fff;font-weight:900;font-size:19px;'
+            f'<span class="score-num" style="background:{GRAD_RED};color:#fff;font-size:19px;'
             f'border-radius:10px;min-width:44px;text-align:center;padding:8px 0">{p_sel.number}</span>'
             f'<div><div style="font-weight:900;font-size:17px">{p_sel.name}</div>'
             f'<div style="font-size:11px;color:{RED};font-weight:800">{p_sel.position}</div></div></div>'
@@ -485,18 +522,19 @@ with tabs[5]:
     st.markdown(card(
         f'<b style="font-size:13.5px">② ホーム/アウェイと守備</b>'
         f'<div style="display:flex;gap:8px;margin-top:8px;text-align:center">'
-        f'<div style="flex:1;background:#fdeaec;border-radius:10px;padding:8px">'
-        f'<div style="font-size:11px;font-weight:800;color:{RED}">ホーム {len(hm)}試合</div>'
-        f'<div style="font-size:19px;font-weight:900">勝点{ph}</div>'
-        f'<div style="font-size:11px;color:{GRAY}">得{gfh}/失{gah}</div></div>'
-        f'<div style="flex:1;background:#f0f1f3;border-radius:10px;padding:8px">'
-        f'<div style="font-size:11px;font-weight:800;color:{GRAY}">アウェイ {len(aw)}試合</div>'
-        f'<div style="font-size:19px;font-weight:900">勝点{pa}</div>'
-        f'<div style="font-size:11px;color:{GRAY}">得{gfa}/失{gaa}</div></div>'
-        f'<div style="flex:1;background:{BLACK};border-radius:10px;padding:8px;color:#fff">'
-        f'<div style="font-size:11px;font-weight:800;color:{PINK}">完封</div>'
-        f'<div style="font-size:19px;font-weight:900">{cs}試合</div>'
-        f'<div style="font-size:11px;color:#B9BDC4">/20試合</div></div></div>'
+        f'<div style="flex:1;background:#22060b;border:1px solid #3a1218;border-radius:12px;padding:9px">'
+        f'<div style="font-size:10.5px;font-weight:800;color:{PINK}">ホーム {len(hm)}試合</div>'
+        f'<div class="score-num" style="font-size:21px;color:#FF3B55">勝点{ph}</div>'
+        f'<div style="font-size:10.5px;color:{GRAY}">得{gfh}/失{gah}</div></div>'
+        f'<div style="flex:1;background:{CARD_BG};border:1px solid {CARD_BD};border-radius:12px;padding:9px">'
+        f'<div style="font-size:10.5px;font-weight:800;color:{GRAY}">アウェイ {len(aw)}試合</div>'
+        f'<div class="score-num" style="font-size:21px;color:{TXT}">勝点{pa}</div>'
+        f'<div style="font-size:10.5px;color:{GRAY}">得{gfa}/失{gaa}</div></div>'
+        f'<div style="flex:1;background:{GRAD_RED};border-radius:12px;padding:9px;color:#fff;'
+        f'box-shadow:0 2px 14px rgba(232,17,45,.4)">'
+        f'<div style="font-size:10.5px;font-weight:800">完封</div>'
+        f'<div class="score-num" style="font-size:21px">{cs}試合</div>'
+        f'<div style="font-size:10.5px;opacity:.85">/20試合</div></div></div>'
     ), unsafe_allow_html=True)
 
     st.markdown("### 勝点の積み上げ")
@@ -529,4 +567,4 @@ with tabs[5]:
     )
     st.caption("J2優勝3回(2000・2007・2016)/ J1最高4位(2018)/ 2017〜24年に8季連続J1在籍")
 
-st.caption("コンサドーレ情報ボード v1.0")
+st.caption("コンサドーレ情報ボード v2.0 — Stadium Night Edition")

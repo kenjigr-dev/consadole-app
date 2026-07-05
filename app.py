@@ -75,15 +75,23 @@ div[data-baseweb="tab-border"] {display: none !important;}
 @keyframes pulse {0%,100% {box-shadow: 0 0 24px rgba(232,17,45,.35);}
   50% {box-shadow: 0 0 44px rgba(232,17,45,.65);}}
 .rise {animation: rise .45s ease both;}
+/* 背景: スタジアム照明風の淡い赤グロー */
+.stApp {background:
+  radial-gradient(900px 460px at 50% -160px, rgba(232,17,45,.12), transparent 62%),
+  #0D0E11 !important;}
 /* ボタン */
 div.stButton > button {border: 1px solid #272A31 !important; border-radius: 12px !important;
-  background: #191B20 !important; color: #F2F3F5 !important; font-weight: 700 !important;}
-div.stButton > button:hover {border-color: #E8112D !important; color: #FF6B81 !important;}
-/* 選手ボタン(key=pl_*)は大きく・太く・背番号を強調 */
-div[class*="st-key-pl_"] button {padding: 13px 6px !important; min-height: 52px !important;
-  border-left: 3px solid #E8112D !important;}
-div[class*="st-key-pl_"] button p {font-size: 16px !important; font-weight: 900 !important;
-  letter-spacing: .02em !important;}
+  background: #191B20 !important; color: #F2F3F5 !important; font-weight: 700 !important;
+  transition: all .15s ease !important;}
+div.stButton > button:hover {border-color: #E8112D !important; color: #FF6B81 !important;
+  box-shadow: 0 2px 12px rgba(232,17,45,.25) !important;}
+/* 選手ボタン(key=pl_*): 背番号を特大表示 */
+div[class*="st-key-pl_"] button {padding: 10px 8px !important; min-height: 62px !important;
+  border-left: 3px solid #E8112D !important; justify-content: flex-start !important;}
+div[class*="st-key-pl_"] button p {font-size: 15.5px !important; font-weight: 900 !important;
+  letter-spacing: .02em !important; line-height: 1.2 !important;}
+div[class*="st-key-pl_"] button p span {font-family: 'Anton', sans-serif !important;
+  font-size: 30px !important; margin-right: 7px !important; vertical-align: middle !important;}
 [data-testid="stDataFrame"] {font-size: 13px;}
 h3 {font-size: 1.0rem !important; margin: 0.5rem 0 0.4rem !important; color: #F2F3F5;}
 </style>
@@ -94,7 +102,7 @@ h3 {font-size: 1.0rem !important; margin: 0.5rem 0 0.4rem !important; color: #F2
 def card(html, pad="13px 15px", mb="10px", glow=False):
     extra = "animation:pulse 3s ease-in-out infinite;" if glow else ""
     return (f'<div class="rise" style="background:{CARD_BG};border:1px solid {CARD_BD};'
-            f'border-radius:16px;padding:{pad};margin-bottom:{mb};{extra}">{html}</div>')
+            f'border-radius:16px;padding:{pad};margin-bottom:{mb};box-shadow:0 2px 12px rgba(0,0,0,.25);{extra}">{html}</div>')
 
 
 def stat_grid(pairs, accent_first=True):
@@ -136,23 +144,38 @@ def parse_jp_date(s, base_year=2026):
 
 def section_label(text, en=""):
     eyebrow = (f'<div style="font-size:9.5px;letter-spacing:.3em;color:{RED};'
-               f'font-weight:800">{en}</div>' if en else "")
-    return (f'<div style="margin:16px 0 8px">{eyebrow}'
-            f'<div style="font-size:15px;font-weight:900;color:{TXT}">{text}</div></div>')
+               f'font-weight:800;margin-left:12px">{en}</div>' if en else "")
+    return (f'<div style="margin:18px 0 8px">{eyebrow}'
+            f'<div style="display:flex;align-items:center;gap:8px">'
+            f'<span style="width:4px;height:15px;background:{GRAD_RED};'
+            f'border-radius:2px;display:inline-block"></span>'
+            f'<span style="font-size:15px;font-weight:900;color:{TXT}">{text}</span></div></div>')
 
 
 # ============ ヘッダー ============
+import random
 stripe = "".join(f'<span style="display:inline-block;width:4.16%;height:8px;'
                  f'background:{RED if i % 2 else BLACK}"></span>' for i in range(24))
+slogan = random.choice([
+    "絶対J1昇格！！", "ブラボーコンサドーレ！！", "北の大地に赤黒の誇りを",
+    "目指すは1年でのJ1復帰！", "ドームを赤黒に染めろ！", "恐れずに挑め、コンサドーレ！",
+    "俺たちの誇り、北海道コンサドーレ札幌", "さあ行こうぜ札幌！",
+    "12番目の選手は俺たちサポーターだ！", "赤と黒の魂を見せろ！",
+    "雪にも夏にも負けず、今日も応援！", "厚別に、ドームに、勝利の凱歌を！",
+])
 st.markdown(
     f'<div style="font-size:0;line-height:0">{stripe}</div>'
-    f'<div style="background:linear-gradient(180deg,#191B20,#0D0E11);'
-    f'border:1px solid {CARD_BD};border-top:none;padding:12px 15px;'
-    f'border-radius:0 0 16px 16px;margin-bottom:10px">'
-    f'<div style="color:{RED};font-size:9px;letter-spacing:.28em;font-weight:800">'
+    f'<div style="background:linear-gradient(180deg,#1d1f25,#0D0E11);'
+    f'border:1px solid {CARD_BD};border-top:none;padding:13px 16px 12px;'
+    f'border-radius:0 0 18px 18px;margin-bottom:10px;'
+    f'box-shadow:0 6px 24px rgba(0,0,0,.35)">'
+    f'<div style="color:{RED};font-size:9px;letter-spacing:.3em;font-weight:800">'
     f'HOKKAIDO CONSADOLE SAPPORO</div>'
-    f'<div style="color:{TXT};font-size:19px;font-weight:900;letter-spacing:.02em">'
-    f'コンサ<span style="color:{RED}">情報ボード</span></div></div>',
+    f'<div style="color:{TXT};font-size:21px;font-weight:900;letter-spacing:.02em">'
+    f'コンサ<span style="color:{RED}">情報ボード</span></div>'
+    f'<div style="margin-top:7px;padding-top:7px;border-top:1px dashed #2c2f37;'
+    f'font-size:12.5px;font-weight:800;color:{PINK}">'
+    f'📣 {slogan}</div></div>',
     unsafe_allow_html=True,
 )
 
@@ -186,6 +209,14 @@ def get_schedule_safe():
     except Exception:
         from fetchers import SNAPSHOT_SCHEDULE
         return SNAPSHOT_SCHEDULE, False, None
+
+
+def get_players_safe():
+    try:
+        return cached_players()
+    except Exception:
+        from fetchers import SNAPSHOT_PLAYERS, _exclude_departed
+        return _exclude_departed(SNAPSHOT_PLAYERS), False
 
 
 # ============ ホーム ============
@@ -243,25 +274,44 @@ with tabs[0]:
 
     # --- 次節 予想スタメン(フォーメーション表示) ---
     st.markdown(section_label("次節 予想スタメン", "PREDICTED XI — AI予想"), unsafe_allow_html=True)
-    PREDICTED_XI = [  # (背番号, 名前, 横位置%, 縦位置%) 上が敵陣
-        ("20", "バカヨコ", 50, 12),
-        ("7", "スパチョーク", 16, 31), ("11", "青木亮太", 50, 29), ("71", "白井陽斗", 84, 31),
-        ("27", "荒野拓馬", 36, 51), ("18", "木戸柊摩", 64, 51),
-        ("5", "福森晃斗", 13, 70), ("25", "大崎玲央", 37, 74),
-        ("3", "パク・ミンギュ", 63, 74), ("2", "高尾瑠", 87, 70),
-        ("24", "田川知樹", 50, 90),
+    players_all, _ = get_players_safe()
+    roster = {p.name: p for p in players_all}
+    # (名簿上の氏名, 表示名, ポジション, 横%, 縦%) — 名簿に居ない選手は同ポジから自動補充
+    XI_PLAN = [
+        ("アマドゥ・バカヨコ", "バカヨコ", "FW", 50, 12),
+        ("スパチョーク", "スパチョーク", "MF", 16, 31),
+        ("青木亮太", "青木亮太", "MF", 50, 29),
+        ("白井陽斗", "白井陽斗", "FW", 84, 31),
+        ("荒野拓馬", "荒野拓馬", "MF", 36, 51),
+        ("木戸柊摩", "木戸柊摩", "MF", 64, 51),
+        ("福森晃斗", "福森晃斗", "DF", 13, 70),
+        ("大崎玲央", "大崎玲央", "DF", 37, 74),
+        ("パク・ミンギュ", "パク・ミンギュ", "DF", 63, 74),
+        ("高尾瑠", "高尾瑠", "DF", 87, 70),
+        ("田川知樹", "田川知樹", "GK", 50, 90),
     ]
+    used = {full for full, *_ in XI_PLAN if full in roster}
+    xi = []
+    for full, disp, pos, x, y in XI_PLAN:
+        if full in roster:
+            xi.append((roster[full].number, disp, x, y))
+        else:  # 退団・移籍済みなら同ポジションの在籍選手を自動補充
+            sub = next((p for p in players_all
+                        if p.position == pos and p.name not in used), None)
+            if sub:
+                used.add(sub.name)
+                xi.append((sub.number, sub.name, x, y))
     chips = ""
-    for num, name, x, y in PREDICTED_XI:
+    for num, name, x, y in xi:
         chips += (
             f'<div style="position:absolute;left:{x}%;top:{y}%;'
-            f'transform:translate(-50%,-50%);text-align:center;width:76px">'
-            f'<div class="score-num" style="width:30px;height:30px;line-height:30px;'
+            f'transform:translate(-50%,-50%);text-align:center;width:78px">'
+            f'<div class="score-num" style="width:32px;height:32px;line-height:32px;'
             f'margin:0 auto;border-radius:50%;background:{GRAD_RED};color:#fff;'
-            f'font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.5);'
-            f'border:1.5px solid rgba(255,255,255,.7)">{num}</div>'
-            f'<div style="font-size:10px;font-weight:800;color:#fff;margin-top:2px;'
-            f'text-shadow:0 1px 3px rgba(0,0,0,.9);line-height:1.2">{name}</div></div>'
+            f'font-size:15px;box-shadow:0 3px 10px rgba(0,0,0,.55);'
+            f'border:1.5px solid rgba(255,255,255,.75)">{num}</div>'
+            f'<div style="font-size:10px;font-weight:800;color:#fff;margin-top:3px;'
+            f'text-shadow:0 1px 4px rgba(0,0,0,.95);line-height:1.25">{name}</div></div>'
         )
     pitch = (
         f'<div class="rise" style="position:relative;height:400px;border-radius:16px;'
@@ -287,13 +337,13 @@ with tabs[0]:
         f'<div style="font-size:11.5px;color:{GRAY};line-height:1.8">'
         f'<b style="color:{PINK}">予想の根拠:</b> 2026特別シーズンの実績スタメンをベースに、'
         f'家泉怜依の退団(→大崎玲央)、マリオ・セルジオの負傷離脱を反映。'
-        f'西野奨太・堀米悠斗・ジョルディ・サンチェスらが割って入る候補。'
+        f'西野奨太・堀米悠斗・大森真吾らが割って入る候補。'
         f'※AIによる予想であり公式発表ではありません。</div>',
         pad="10px 14px",
     ), unsafe_allow_html=True)
 
     # --- チーム状態(フォーム+総括) ---
-    st.markdown(section_label("チーム状態"), unsafe_allow_html=True)
+    st.markdown(section_label("チーム状態", "TEAM FORM"), unsafe_allow_html=True)
     last5 = SEASON_SP[-5:]
     w = sum(1 for m in SEASON_SP if m[4] == "勝")
     pw = sum(1 for m in SEASON_SP if m[4] == "PK勝")
@@ -312,7 +362,7 @@ with tabs[0]:
     ]), unsafe_allow_html=True)
 
     # --- 新シーズン情報 ---
-    st.markdown(section_label("2026/27シーズン"), unsafe_allow_html=True)
+    st.markdown(section_label("2026/27シーズン", "SEASON INFO"), unsafe_allow_html=True)
     st.markdown(card(
         f'<table style="width:100%;font-size:12.5px;border-collapse:collapse">'
         f'<tr><td style="color:{RED};font-weight:800;width:60px;padding:4px 0">開幕</td>'
@@ -323,7 +373,7 @@ with tabs[0]:
         f'<td>2027年5月22日・23日 → 昇格PO 5月末〜6月上旬</td></tr></table>'
     ), unsafe_allow_html=True)
 
-    st.markdown(section_label("リンク"), unsafe_allow_html=True)
+    st.markdown(section_label("リンク", "LINKS"), unsafe_allow_html=True)
     st.markdown(card(
         f'<div style="font-size:13px;line-height:2.1">'
         f'<a href="https://www.consadole-sapporo.jp/" target="_blank" style="color:{TXT};font-weight:700">公式サイト →</a><br>'
@@ -433,12 +483,8 @@ with tabs[4]:
     c1.markdown("### 所属選手")
     if c2.button("更新", key="play_btn", width="stretch"):
         cached_players.clear()
-    try:
-        with st.spinner("取得中…"):
-            players, p_live = cached_players()
-    except Exception:
-        from fetchers import SNAPSHOT_PLAYERS
-        players, p_live = SNAPSHOT_PLAYERS, False
+    with st.spinner("取得中…"):
+        players, p_live = get_players_safe()
     st.caption("選手名をタップすると経歴がポップアップ表示されます"
                + ("(名簿はライブ取得)" if p_live else f"(名簿は{SNAPSHOT_DATE}時点)"))
 
@@ -679,4 +725,4 @@ with tabs[5]:
     )
     st.caption("J2優勝3回(2000・2007・2016)/ J1最高4位(2018)/ 2017〜24年に8季連続J1在籍")
 
-st.caption("コンサ情報ボード v2.2 — Stadium Night Edition")
+st.caption("コンサ情報ボード v2.3 — Stadium Night Edition")

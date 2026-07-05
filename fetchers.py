@@ -212,7 +212,7 @@ SNAPSHOT_PLAYERS: list[Player] = [
     Player("18", "木戸柊摩", "MF"), Player("27", "荒野拓馬", "MF"),
     Player("30", "田中宏武", "MF"), Player("35", "原康介", "MF"),
     Player("40", "佐藤陽成", "MF"),
-    Player("9", "マリオ・セルジオ", "FW"), Player("9", "ジョルディ・サンチェス", "FW"),
+    Player("9", "マリオ・セルジオ", "FW"),
     Player("19", "ティラパット", "FW"), Player("20", "アマドゥ・バカヨコ", "FW"),
     Player("22", "キングロード・サフォ", "FW"), Player("23", "大森真吾", "FW"),
     Player("71", "白井陽斗", "FW"),
@@ -220,7 +220,7 @@ SNAPSHOT_PLAYERS: list[Player] = [
 
 
 # 退団・移籍が確定した選手(データ源の更新が遅れても表示しない)
-DEPARTED_PLAYERS = {"家泉怜依", "フランシス・カン"}
+DEPARTED_PLAYERS = {"家泉怜依", "フランシス・カン", "ジョルディ・サンチェス"}
 
 
 def _exclude_departed(players: list[Player]) -> list[Player]:

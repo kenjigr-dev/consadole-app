@@ -8,6 +8,44 @@ import streamlit as st
 from fetchers import (SNAPSHOT_DATE, fetch_news, fetch_players,
                       fetch_schedule, fetch_standings)
 
+import anthropic
+
+AI_SYSTEM_PROMPT = """あなたはコンサドーレ札幌を長年応援している、分析にも詳しいサポーターです。
+試合結果を渡すので、サポーター目線の短い講評を書いてください。
+
+条件:
+- 100字以内
+- 絵文字・顔文字は使わない
+- 煽り言葉や過度な断定は避ける
+- 最後は次節への期待や視点で締める"""
+
+
+@st.cache_data(ttl=None, show_spinner=False)
+def get_ai_commentary(latest_match: tuple, recent_form: tuple):
+    """直近試合のAI講評。SEASON_SPの最新行が変わらない限りキャッシュされ、
+    新しい試合が追記されたときだけAPIを呼び出す。"""
+    try:
+        api_key = st.secrets["ANTHROPIC_API_KEY"]
+    except Exception:
+        return None
+    d, opp, ha, score, result = latest_match
+    recent = " ".join(m[4] for m in recent_form)
+    user_msg = (
+        f"試合結果:\n日付: {d}\n対戦相手: {opp}({ha})\n"
+        f"スコア: {score}\n結果: {result}\n\n直近5試合: {recent}"
+    )
+    try:
+        client = anthropic.Anthropic(api_key=api_key)
+        resp = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=200,
+            system=AI_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_msg}],
+        )
+        return resp.content[0].text
+    except Exception:
+        return None
+      
 JST = timezone(timedelta(hours=9))
 
 
@@ -259,6 +297,18 @@ with tabs[0]:
             unsafe_allow_html=True,
         )
 
+    # --- 直近の試合 AI講評 ---
+    if SEASON_SP:
+        latest = SEASON_SP[-1]
+        recent_5 = tuple(SEASON_SP[-5:])
+        comment = get_ai_commentary(latest, recent_5)
+        if comment:
+            st.markdown(card(
+                f'<span style="font-size:10px;font-weight:800;color:{PINK};'
+                f'letter-spacing:.15em">AI講評</span>'
+                f'<div style="font-size:13px;line-height:1.7;margin-top:5px">{comment}</div>'
+            ), unsafe_allow_html=True)
+  
     # --- 開幕カウントダウン(コンパクト) ---
     days = (KICKOFF_DATE - today).days
     if days > 0:

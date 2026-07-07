@@ -273,7 +273,7 @@ def fetch_players() -> tuple[list[Player], bool]:
     """ゲキサカの選手一覧を取得する。失敗時はスナップショットを返す。"""
     try:
         res = requests.get(
-            "https://web.gekisaka.jp/club/player?club_id=561",
+            "https://web.gekisaka.jp/club/detail?club_id=561",
             headers=UA, timeout=TIMEOUT,
         )
         res.raise_for_status()
@@ -345,7 +345,7 @@ def fetch_player_detail(url: str) -> dict:
     headers = {
         "User-Agent": ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
                        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"),
-        "Referer": "https://web.gekisaka.jp/club/player?club_id=561",
+        "Referer": "https://web.gekisaka.jp/club/detail?club_id=561",
         "Accept-Language": "ja,en;q=0.8",
     }
     res = requests.get(url, headers=headers, timeout=TIMEOUT)

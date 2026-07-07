@@ -634,15 +634,14 @@ with tabs[4]:
                         career_html = (f'<div style="font-size:11px;color:{GRAY};font-weight:700;'
                                        f'margin-top:8px">経歴</div>'
                                        f'<div style="font-size:12.5px;line-height:1.9">{chain}</div>')
-ai_html = ""
+                    ai_html = ""
                     summary = get_player_ai_summary(
                         p_sel.name, det.get("career", ""), det.get("awards", ""), det.get("natl", ""))
                     if summary:
                         ai_html = (f'<div style="font-size:11px;color:{GRAY};font-weight:700;'
                                    f'margin-top:8px">紹介</div>'
-                                   f'<div style="font-size:12.5px;line-height:1.8">{summary}</div>')                    
-                  
-              　　　 news_html = ""
+                                   f'<div style="font-size:12.5px;line-height:1.8">{summary}</div>')
+                    news_html = ""
                     if det.get("news"):
                         items = "".join(
                             f'<div style="font-size:12px;padding:3px 0;border-top:1px solid #eef0f2">'

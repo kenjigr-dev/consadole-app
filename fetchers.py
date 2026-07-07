@@ -176,6 +176,48 @@ def _find_venue(text: str) -> str:
             return v
     return "-"
 
+def fetch_season_results(url: str) -> list[tuple]:
+    """スポーツナビの札幌 日程・結果ページから、消化済み試合を
+    (日付, 対戦相手, H/A, スコア, 結果) 形式で返す。未消化の試合は含まない。"""
+    try:
+        res = requests.get(url, headers=UA, timeout=TIMEOUT)
+        res.raise_for_status()
+    except Exception:
+        return []
+    soup = BeautifulSoup(res.text, "html.parser")
+    results: list[tuple] = []
+    for table in soup.find_all("table"):
+        for tr in table.find_all("tr"):
+            cells = tr.find_all("td")
+            if len(cells) < 6:
+                continue
+            date_cell = cells[0].get_text(" ", strip=True)
+            mark = cells[2].get_text(strip=True)
+            home_a, away_a = cells[3].find("a"), cells[5].find("a")
+            score_cell = cells[4].get_text(" ", strip=True)
+            if not (home_a and away_a) or "試合終了" not in score_cell:
+                continue
+            home_name, away_name = home_a.get_text(strip=True), away_a.get_text(strip=True)
+            m_date = re.search(r"(\d{1,2})/(\d{1,2})", date_cell)
+            nums = re.findall(r"\d+", score_cell.split("試合終了")[0])
+            if not m_date or len(nums) < 2:
+                continue
+            date_str = f"{int(m_date.group(1)):02d}.{int(m_date.group(2)):02d}"
+            h_score, a_score = int(nums[0]), int(nums[1])
+            is_pk = "PK" in score_cell
+            if home_name == "札幌":
+                opp, ha, sp, op = away_name, "H", h_score, a_score
+            elif away_name == "札幌":
+                opp, ha, sp, op = home_name, "A", a_score, h_score
+            else:
+                continue
+            win = mark == "○"
+            if is_pk:
+                score_str, result = f"{sp}-{op} PK{'○' if win else '●'}", ("PK勝" if win else "PK負")
+            else:
+                score_str, result = f"{sp}-{op}", ("勝" if win else "負")
+            results.append((date_str, opp, ha, score_str, result))
+    return results
 
 if __name__ == "__main__":
     # 動作確認用: python fetchers.py

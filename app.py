@@ -45,7 +45,44 @@ def get_ai_commentary(latest_match: tuple, recent_form: tuple):
         return resp.content[0].text
     except Exception:
         return None
-      
+
+PLAYER_SYSTEM_PROMPT = """あなたはサッカー選手の経歴を分かりやすく紹介するライターです。
+渡された情報だけを使って、自然な文章で選手を紹介してください。
+
+条件:
+- 120字以内
+- 渡されていない情報は絶対に創作しない
+- 断定的な評価(「〜の実力者」等)は避け、事実ベースでまとめる
+- 敬体(です・ます調)で書く"""
+
+
+@st.cache_data(ttl=None, show_spinner=False)
+def get_player_ai_summary(name: str, career: str, awards: str, natl: str):
+    """選手経歴のAI要約。渡す情報が変わらない限りキャッシュされる。"""
+    try:
+        api_key = st.secrets["ANTHROPIC_API_KEY"]
+    except Exception:
+        return None
+    if not (career or awards or natl):
+        return None
+    parts = [f"選手名: {name}"]
+    if career:
+        parts.append(f"経歴: {career}")
+    if awards:
+        parts.append(f"受賞歴: {awards}")
+    if natl:
+        parts.append(f"代表歴: {natl}")
+    try:
+        client = anthropic.Anthropic(api_key=api_key)
+        resp = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=200,
+            system=PLAYER_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": "\n".join(parts)}],
+        )
+        return resp.content[0].text
+    except Exception:
+        return None      
 JST = timezone(timedelta(hours=9))
 
 
@@ -323,7 +360,7 @@ with tabs[0]:
         ), unsafe_allow_html=True)
 
     # --- 次節 予想スタメン(フォーメーション表示) ---
-    st.markdown(section_label("次節 予想スタメン", "PREDICTED XI — AI予想"), unsafe_allow_html=True)
+    st.markdown(section_label("次節 予想スタメン", "PREDICTED XI"), unsafe_allow_html=True)
     players_all, _ = get_players_safe()
     roster = {p.name: p for p in players_all}
     # (名簿上の氏名, 表示名, ポジション, 横%, 縦%) — 名簿に居ない選手は同ポジから自動補充
@@ -597,7 +634,15 @@ with tabs[4]:
                         career_html = (f'<div style="font-size:11px;color:{GRAY};font-weight:700;'
                                        f'margin-top:8px">経歴</div>'
                                        f'<div style="font-size:12.5px;line-height:1.9">{chain}</div>')
-                    news_html = ""
+ai_html = ""
+                    summary = get_player_ai_summary(
+                        p_sel.name, det.get("career", ""), det.get("awards", ""), det.get("natl", ""))
+                    if summary:
+                        ai_html = (f'<div style="font-size:11px;color:{GRAY};font-weight:700;'
+                                   f'margin-top:8px">紹介</div>'
+                                   f'<div style="font-size:12.5px;line-height:1.8">{summary}</div>')                    
+                  
+              　　　 news_html = ""
                     if det.get("news"):
                         items = "".join(
                             f'<div style="font-size:12px;padding:3px 0;border-top:1px solid #eef0f2">'
@@ -608,7 +653,8 @@ with tabs[4]:
                     body = (head_html
                             + f'<table style="width:100%;font-size:12.5px;'
                             f'border-collapse:collapse;margin-top:8px">{rows}</table>'
-                            + career_html + news_html + links_html)
+                            + career_html + ai_html + news_html + links_html)
+                            
                 else:
                     diag.append("ゲキサカ: データ項目が空")
             except Exception as e:

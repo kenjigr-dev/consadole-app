@@ -2,6 +2,7 @@
 
 - ニュース: Google News RSS (安定・キー不要)
 - 日程・結果: クラブ公式サイトのスクレイピング(失敗時はスナップショットに自動フォールバック)
+- 選手一覧・詳細: スポーツナビ(日程・順位表と同じサイトに統一)
 """
 from __future__ import annotations
 
@@ -40,7 +41,6 @@ def fetch_news(query: str = "コンサドーレ札幌", limit: int = 10) -> list
         f"q={quote(query)}&hl=ja&gl=JP&ceid=JP:ja"
     )
     feed = feedparser.parse(url)
-    # 公開日時の新しい順に並べ替え(RSSの並びは必ずしも新着順ではない)
     entries = sorted(
         feed.entries,
         key=lambda e: e.get("published_parsed") or (0,) * 9,
@@ -48,7 +48,6 @@ def fetch_news(query: str = "コンサドーレ札幌", limit: int = 10) -> list
     )
     items: list[NewsItem] = []
     for e in entries[:limit]:
-        # タイトル末尾の「 - 媒体名」を分離
         title = e.get("title", "")
         source = ""
         m = re.match(r"^(.*)\s-\s([^-]+)$", title)
@@ -56,7 +55,6 @@ def fetch_news(query: str = "コンサドーレ札幌", limit: int = 10) -> list
             title, source = m.group(1).strip(), m.group(2).strip()
         if not source:
             source = getattr(getattr(e, "source", None), "title", "") or "ニュース"
-        # UTCの公開日時を日本時間に変換して「7月5日 18:30」形式に
         date = ""
         if getattr(e, "published_parsed", None):
             ts = calendar.timegm(e.published_parsed)
@@ -69,15 +67,14 @@ def fetch_news(query: str = "コンサドーレ札幌", limit: int = 10) -> list
 # ============ 日程・結果 ============
 @dataclass
 class Match:
-    date: str       # 例: 8月8日(土)
-    kickoff: str    # 例: 14:45 / 未定
-    comp: str       # 例: J2第1節 / 天皇杯2回戦
+    date: str
+    kickoff: str
+    comp: str
     opponent: str
-    home_away: str  # H / A
+    home_away: str
     venue: str
-    result: str     # 例: ○2-1 / 予定
+    result: str
 
-# 2026-07-04時点の確定日程(スクレイピング失敗時のフォールバック)
 SNAPSHOT_SCHEDULE: list[Match] = [
     Match("7月25日(土)", "15:00", "プレシーズンマッチ", "名古屋", "H", "宮の沢白い恋人サッカー場", "予定"),
     Match("8月8日(土)", "14:45", "J2 第1節", "徳島", "H", "大和ハウス プレミストドーム", "予定"),
@@ -90,11 +87,6 @@ SNAPSHOT_DATE = "2026年7月4日"
 
 
 def fetch_schedule() -> tuple[list[Match], bool]:
-    """クラブ公式サイトから日程・結果の取得を試みる。
-
-    Returns:
-        (試合リスト, ライブ取得に成功したかどうか)
-    """
     try:
         res = requests.get(
             "https://www.consadole-sapporo.jp/game/gamelist/",
@@ -111,14 +103,7 @@ def fetch_schedule() -> tuple[list[Match], bool]:
 
 
 def _parse_official_gamelist(soup: BeautifulSoup) -> list[Match]:
-    """公式サイトの試合一覧を解析する。
-
-    サイト構造は変わることがあるため、複数のパターンを試し、
-    読み取れた分だけ返す(全滅ならフォールバックが使われる)。
-    """
     matches: list[Match] = []
-
-    # パターン1: テーブル形式
     for table in soup.find_all("table"):
         for tr in table.find_all("tr"):
             cells = [td.get_text(" ", strip=True) for td in tr.find_all(["td", "th"])]
@@ -176,6 +161,7 @@ def _find_venue(text: str) -> str:
             return v
     return "-"
 
+
 def fetch_season_results(url: str) -> list[tuple]:
     """スポーツナビの札幌 日程・結果ページから、消化済み試合を
     (日付, 対戦相手, H/A, スコア, 結果) 形式で返す。未消化の試合は含まない。"""
@@ -219,8 +205,8 @@ def fetch_season_results(url: str) -> list[tuple]:
             results.append((date_str, opp, ha, score_str, result))
     return results
 
+
 if __name__ == "__main__":
-    # 動作確認用: python fetchers.py
     print("--- ニュース ---")
     for n in fetch_news(limit=5):
         print(f"[{n.source}] {n.date} {n.title}")
@@ -231,15 +217,14 @@ if __name__ == "__main__":
         print(f"{m.date} {m.kickoff} vs {m.opponent} ({m.home_away}) {m.result}")
 
 
-# ============ 選手一覧 ============
+# ============ 選手一覧・詳細(スポーツナビ) ============
 @dataclass
 class Player:
     number: str
     name: str
     position: str  # GK/DF/MF/FW
-    url: str = ""  # ゲキサカ選手ページ
+    url: str = ""  # スポーツナビ選手ページ
 
-# 2026-07-04時点の登録選手(ゲキサカ掲載、取得失敗時のフォールバック)
 SNAPSHOT_PLAYERS: list[Player] = [
     Player("1", "菅野孝憲", "GK"), Player("24", "田川知樹", "GK"),
     Player("41", "唯野鶴眞", "GK"), Player("51", "高木駿", "GK"),
@@ -260,8 +245,6 @@ SNAPSHOT_PLAYERS: list[Player] = [
     Player("71", "白井陽斗", "FW"),
 ]
 
-
-# 退団・移籍が確定した選手(データ源の更新が遅れても表示しない)
 DEPARTED_PLAYERS = {"家泉怜依", "フランシス・カン", "ジョルディ・サンチェス"}
 
 
@@ -270,120 +253,76 @@ def _exclude_departed(players: list[Player]) -> list[Player]:
 
 
 def fetch_players() -> tuple[list[Player], bool]:
-    """ゲキサカの選手一覧を取得する。失敗時はスナップショットを返す。"""
+    """スポーツナビの選手一覧を取得する。失敗時はスナップショットを返す。"""
     try:
         res = requests.get(
-            "https://web.gekisaka.jp/club/detail?club_id=561",
+            "https://soccer.yahoo.co.jp/jleague/category/j2/teams/276/players",
             headers=UA, timeout=TIMEOUT,
         )
         res.raise_for_status()
-        players = _parse_gekisaka_players(res.text)
-        if len(players) >= 15:  # 妥当な人数が取れた時だけライブ扱い
+        soup = BeautifulSoup(res.text, "html.parser")
+        players: list[Player] = []
+        for table in soup.find_all("table"):
+            for tr in table.find_all("tr"):
+                cells = tr.find_all("td")
+                if len(cells) < 3:
+                    continue
+                pos = cells[0].get_text(strip=True)
+                if pos not in ("GK", "DF", "MF", "FW"):
+                    continue  # 監督などスタッフ行は除外
+                number = cells[1].get_text(strip=True)
+                a = cells[2].find("a")
+                if not a:
+                    continue
+                name = a.get_text(strip=True)
+                href = a.get("href", "")
+                p_url = href if href.startswith("http") else "https://soccer.yahoo.co.jp" + href
+                players.append(Player(number, name, pos, p_url))
+        if len(players) >= 15:
             return _exclude_departed(players), True
     except Exception:
         pass
     return _exclude_departed(SNAPSHOT_PLAYERS), False
 
 
-def _parse_gekisaka_players(html: str) -> list[Player]:
-    """選手一覧を解析する。リンク付きHTML構造を優先し、失敗時はテキスト解析。"""
-    soup = BeautifulSoup(html, "html.parser")
-
-    # パターンA: <a href="/player/?...">名前</a> を順に辿り、直前の数字と▼見出しを対応付け
-    players: list[Player] = []
-    pos, pending_num = "", ""
-    for node in soup.descendants:
-        if isinstance(node, str):
-            for t in node.splitlines():
-                t = t.strip()
-                m = re.match(r"^[▼■]\s*(GK|DF|MF|FW)", t)
-                if m:
-                    pos = m.group(1)
-                    pending_num = ""
-                elif re.fullmatch(r"\d{1,2}", t):
-                    pending_num = t
-        elif getattr(node, "name", "") == "a" and "/player/" in (node.get("href") or ""):
-            name = node.get_text(strip=True)
-            if pos and pending_num and 1 < len(name) < 20:
-                href = node["href"]
-                if href.startswith("/"):
-                    href = "https://web.gekisaka.jp" + href
-                players.append(Player(pending_num, name, pos, href))
-                pending_num = ""
-    if len(players) >= 15:
-        return players
-
-    # パターンB: テキストのみ(リンク構造が変わった場合の保険)
-    text = soup.get_text("\n")
-    players, pos, pending_num = [], "", ""
-    for line in text.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        m = re.match(r"^[▼■]\s*(GK|DF|MF|FW)", line)
-        if m:
-            pos, pending_num = m.group(1), ""
-            continue
-        if not pos:
-            continue
-        pm = re.match(r"^(\d{1,2})\s*([^\d].+)$", line)
-        if pm and 1 < len(pm.group(2)) < 20:
-            players.append(Player(pm.group(1), pm.group(2).strip(), pos))
-            pending_num = ""
-            continue
-        if re.fullmatch(r"\d{1,2}", line):
-            pending_num = line
-            continue
-        if pending_num and 1 < len(line) < 20 and not line.startswith(("http", "▼")):
-            players.append(Player(pending_num, line, pos))
-            pending_num = ""
-    return players
-
-
 def fetch_player_detail(url: str) -> dict:
-    """ゲキサカの選手個人ページからプロフィール・経歴・関連ニュースを取得する。"""
-    headers = {
-        "User-Agent": ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
-                       "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"),
-        "Referer": "https://web.gekisaka.jp/club/detail?club_id=561",
-        "Accept-Language": "ja,en;q=0.8",
-    }
-    res = requests.get(url, headers=headers, timeout=TIMEOUT)
+    """スポーツナビの選手個別ページからプロフィール・経歴を取得する。"""
+    res = requests.get(url, headers=UA, timeout=TIMEOUT)
     res.raise_for_status()
     text = BeautifulSoup(res.text, "html.parser").get_text("\n")
     d: dict = {"news": []}
-
-    m = re.search(r"■所属\s*[:：]\s*(.+)", text)
+    m = re.search(r"生年月日[^\d]*(\d{4})年(\d{1,2})月(\d{1,2})日", text)
     if m:
-        d["club"] = m.group(1).strip()
-    m = re.search(r"■背番号\s*[:：]\s*(\S+)", text)
-    if m:
-        d["number"] = m.group(1).strip()
-    m = re.search(r"■ポジション\s*[:：]\s*(\S+)", text)
-    if m:
-        d["position"] = m.group(1).strip()
-    m = re.search(r"■\s*(\d{4}-\d{2}-\d{2})", text)
-    if m:
-        d["birth"] = m.group(1)
-    m = re.search(r"■\s*(\d{2,3}cm/\d{2,3}kg)", text)
-    if m:
-        d["body"] = m.group(1)
-    m = re.search(r"経歴\s*=\s*([^\n■]+)", text)
+        y, mo, da = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        d["birth"] = f"{y}-{mo:02d}-{da:02d}"
+    h = re.search(r"身長[^\d]*(\d{2,3})cm", text)
+    w = re.search(r"体重[^\d]*(\d{2,3})kg", text)
+    if h and w:
+        d["body"] = f"{h.group(1)}cm/{w.group(1)}kg"
+    m = re.search(r"過去の所属\s*\n*\s*([^\n]+)", text)
     if m:
         d["career"] = m.group(1).strip()
-    m = re.search(r"Jリーグ受賞歴\s*=?\s*([^\n■]+)", text)
+    m = re.search(r"個人タイトル\s*\n*\s*([^\n]+)", text)
     if m:
         d["awards"] = m.group(1).strip()
-    m = re.search(r"■代表歴\s*[:：]?\s*\n?\s*([^\n■]+)", text)
-    if m:
-        d["natl"] = m.group(1).strip()
-
-    # 関連ニュース: 「見出し 20xx-xx-xx」形式の行
-    for line in text.splitlines():
-        nm = re.match(r"^(.{8,60}?)\s+(20\d{2}-\d{2}-\d{2})$", line.strip())
-        if nm and len(d["news"]) < 5:
-            d["news"].append({"title": nm.group(1).strip(), "date": nm.group(2)})
     return d
+
+
+def fetch_player_wiki(name: str) -> dict:
+    """Wikipediaの要約API(構造が安定)から選手の人物紹介を取得する。予備ルートとして維持。"""
+    res = requests.get(
+        f"https://ja.wikipedia.org/api/rest_v1/page/summary/{quote(name)}",
+        headers=UA, timeout=TIMEOUT,
+    )
+    res.raise_for_status()
+    data = res.json()
+    extract = data.get("extract", "")
+    if "サッカー" not in extract and "フットボール" not in extract:
+        return {}
+    return {
+        "extract": extract,
+        "wiki_url": data.get("content_urls", {}).get("mobile", {}).get("page", ""),
+    }
 
 
 # ============ J2順位表 ============
@@ -409,10 +348,6 @@ class StandingRow:
 
 
 def fetch_standings() -> tuple[list[StandingRow], bool]:
-    """スポーツナビのJ2順位表を取得する。
-
-    開幕前やサイト構造変更で読み取れない場合は ([], False) を返す。
-    """
     try:
         res = requests.get(
             "https://soccer.yahoo.co.jp/jleague/category/j2/standings",
@@ -440,22 +375,3 @@ def fetch_standings() -> tuple[list[StandingRow], bool]:
     except Exception:
         pass
     return [], False
-
-
-def fetch_player_wiki(name: str) -> dict:
-    """Wikipediaの要約API(構造が安定)から選手の人物紹介を取得する。"""
-    from urllib.parse import quote
-    res = requests.get(
-        f"https://ja.wikipedia.org/api/rest_v1/page/summary/{quote(name)}",
-        headers=UA, timeout=TIMEOUT,
-    )
-    res.raise_for_status()
-    data = res.json()
-    extract = data.get("extract", "")
-    # 同名の別人ページを避ける(サッカー関係の記述があるものだけ採用)
-    if "サッカー" not in extract and "フットボール" not in extract:
-        return {}
-    return {
-        "extract": extract,
-        "wiki_url": data.get("content_urls", {}).get("mobile", {}).get("page", ""),
-    }

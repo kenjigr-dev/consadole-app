@@ -747,10 +747,10 @@ with tabs[5]:
     ), unsafe_allow_html=True)
 
     # --- 昨季との比較(1試合平均) ---
-    SP_GF = sum(int(m[3].split(" ")[0].split("-")[0]) for m in SEASON_SP)
-    SP_GA = sum(int(m[3].split(" ")[0].split("-")[1]) for m in SEASON_SP)
-    SP_PTS = sum(PTS[m[4]] for m in SEASON_SP)
-    N = len(SEASON_SP)
+    SP_GF = sum(int(m[3].split(" ")[0].split("-")[0]) for m in HISTORICAL_SP)
+    SP_GA = sum(int(m[3].split(" ")[0].split("-")[1]) for m in HISTORICAL_SP)
+    SP_PTS = sum(PTS[m[4]] for m in HISTORICAL_SP)
+    N = len(HISTORICAL_SP)
     Y25 = {"pts": 53, "gp": 38, "gf": 50, "ga": 63}  # 2025年J2実績
     st.markdown(card(
         f'<b style="font-size:13.5px">昨季2025 → 2026特別シーズンの変化(1試合平均)</b>'
@@ -763,7 +763,7 @@ with tabs[5]:
         f'<td>{SP_PTS/N:.2f}</td><td>{SP_GF/N:.2f}</td><td>{SP_GA/N:.2f}</td></tr></table>'
         f'<div style="font-size:12px;color:{GRAY};margin-top:6px">'
         f'最大の変化は<b style="color:{TXT}">守備(失点{Y25["ga"]/Y25["gp"]:.2f}→{SP_GA/N:.2f})</b>。'
-        f'昨季の「打ち合って失速」から、完封{sum(1 for m in SEASON_SP if int(m[3].split(" ")[0].split("-")[1]) == 0)}試合の'
+        f'昨季の「打ち合って失速」から、完封{sum(1 for m in HISTORICAL_SP if int(m[3].split(" ")[0].split("-")[1]) == 0)}試合の'
         f'「勝ち切れるチーム」へ体質が変わりつつある。</div>'
     ), unsafe_allow_html=True)
 
@@ -774,8 +774,8 @@ with tabs[5]:
         ga = sum(int(m[3].split(" ")[0].split("-")[1]) for m in ms)
         return p, gf, ga
 
-    p1, gf1, ga1 = summarize(SEASON_SP[:10])
-    p2, gf2, ga2 = summarize(SEASON_SP[10:])
+    p1, gf1, ga1 = summarize(HISTORICAL_SP[:10])
+    p2, gf2, ga2 = summarize(HISTORICAL_SP[10:])
     st.markdown(card(
         f'<b style="font-size:13.5px">① 別チーム級の後半戦</b>'
         f'<table style="width:100%;font-size:13px;margin-top:6px;border-collapse:collapse;text-align:center">'
@@ -809,7 +809,7 @@ with tabs[5]:
         f'box-shadow:0 2px 14px rgba(232,17,45,.4)">'
         f'<div style="font-size:10.5px;font-weight:800">完封</div>'
         f'<div class="score-num" style="font-size:21px">{cs}試合</div>'
-        f'<div style="font-size:10.5px;opacity:.85">/20試合</div></div></div>'
+        f'<div style="font-size:10.5px;opacity:.85">/{N}試合</div></div></div>'
     ), unsafe_allow_html=True)
 
     st.markdown("### 勝点の積み上げ")
@@ -817,14 +817,14 @@ with tabs[5]:
     for m in SEASON_SP:
         total += PTS[m[4]]
         pts_cum.append(total)
-    df_pts = pd.DataFrame({"勝点": pts_cum}, index=range(1, 21))
+    df_pts = pd.DataFrame({"勝点": pts_cum}, index=range(1, len(pts_cum) + 1))
     df_pts.index.name = "節"
     st.line_chart(df_pts, color=RED, height=200)
 
     st.markdown("### 得点・失点の推移")
     gf = [int(m[3].split(" ")[0].split("-")[0]) for m in SEASON_SP]
     ga = [int(m[3].split(" ")[0].split("-")[1]) for m in SEASON_SP]
-    df_g = pd.DataFrame({"得点": gf, "失点": ga}, index=range(1, 21))
+    df_g = pd.DataFrame({"得点": gf, "失点": ga}, index=range(1, len(gf) + 1))
     df_g.index.name = "節"
     st.bar_chart(df_g, color=[RED, "#B9BDC4"], height=200)
 

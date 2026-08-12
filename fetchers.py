@@ -166,7 +166,8 @@ def fetch_official_results() -> tuple[list[tuple], str]:
         return [], "公式サイトのHTTP取得に失敗"
     _, results = _parse_official_gamelist(text)
     if not results:
-        return [], f"公式サイトは取得できたが試合データを抽出できず(HTML長:{len(text)})"
+        preview = text[:150].replace("\n", " ")
+        return [], f"公式サイトは取得できたが試合データを抽出できず(HTML長:{len(text)}) 冒頭:「{preview}」"
     return results, f"OK(公式サイト): {len(results)}試合取得"
 
 

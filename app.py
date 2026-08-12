@@ -5,8 +5,8 @@ from datetime import date, datetime, timedelta, timezone
 import pandas as pd
 import streamlit as st
 
-from fetchers import (SNAPSHOT_DATE, fetch_news, fetch_official_results,
-                      fetch_players, fetch_schedule, fetch_season_results,
+from fetchers import (SNAPSHOT_DATE, fetch_jleague_results, fetch_news,
+                      fetch_official_results, fetch_players, fetch_schedule,
                       fetch_standings)
 
 import anthropic
@@ -116,13 +116,13 @@ def get_season_sp() -> tuple[list[tuple], str]:
     公式サイト(JS非依存)を優先し、失敗時はスポーツナビ、それも失敗時は
     HISTORICAL_SPのみを返す(空スケジュールより安全)。
     戻り値は (結合済みSEASON_SP, 診断メッセージ)。"""
-    live, diag = fetch_official_results()
+    live, diag = fetch_jleague_results()
     if not live:
-        live2, diag2 = fetch_season_results()
+        live2, diag2 = fetch_official_results()
         if live2:
             live, diag = live2, diag2
         else:
-            diag = f"{diag} / スポーツナビも失敗: {diag2}"
+            diag = f"{diag} / 公式サイトも失敗: {diag2}"
     sp = HISTORICAL_SP + live if live else HISTORICAL_SP
     return sp, diag
 

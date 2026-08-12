@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from fetchers import (SNAPSHOT_DATE, fetch_news, fetch_players,
-                      fetch_schedule, fetch_standings)
+                      fetch_schedule, fetch_season_results, fetch_standings)
 
 import anthropic
 
@@ -94,8 +94,8 @@ def now_jst() -> datetime:
 def today_jst() -> date:
     return now_jst().date()
 
-# ============ 静的データ(2026-07-04時点) ============
-SEASON_SP = [
+# ============ シーズン開幕前の特別大会 結果(固定・変化しない過去データ) ============
+HISTORICAL_SP = [
     ("02.08", "いわき", "A", "0-1", "負"), ("02.14", "大宮", "A", "2-3", "負"),
     ("02.21", "長野", "A", "1-1 PK○", "PK勝"), ("02.28", "岐阜", "H", "1-2", "負"),
     ("03.07", "松本", "A", "0-3", "負"), ("03.14", "磐田", "A", "1-0", "勝"),
@@ -107,6 +107,17 @@ SEASON_SP = [
     ("05.16", "福島", "A", "3-0", "勝"), ("05.23", "磐田", "H", "0-1", "負"),
     ("05.31", "秋田", "A", "1-1 PK●", "PK負"), ("06.06", "新潟", "A", "0-0 PK●", "PK負"),
 ]
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def get_season_sp() -> list[tuple]:
+    """HISTORICAL_SP(特別大会・固定)+ 新J2シーズンのライブ結果を結合。
+    ライブ取得に失敗した場合はHISTORICAL_SPのみを返す(空スケジュールより安全)。"""
+    live = fetch_season_results()
+    return HISTORICAL_SP + live if live else HISTORICAL_SP
+
+
+SEASON_SP = get_season_sp()
 HISTORY = [
     (2025, "J2", 12), (2024, "J1", 19), (2023, "J1", 12), (2022, "J1", 10),
     (2021, "J1", 10), (2020, "J1", 12), (2019, "J1", 10), (2018, "J1", 4),

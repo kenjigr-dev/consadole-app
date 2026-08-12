@@ -76,20 +76,19 @@ class Match:
     result: str
 
 SNAPSHOT_SCHEDULE: list[Match] = [
-    Match("7月25日(土)", "15:00", "プレシーズンマッチ", "名古屋", "H", "宮の沢白い恋人サッカー場", "予定"),
-    Match("8月8日(土)", "14:45", "J2 第1節", "徳島", "H", "大和ハウス プレミストドーム", "予定"),
-    Match("8月15/16日", "未定", "J2 第2節", "新潟", "A", "未定", "予定"),
-    Match("8月22/23日", "未定", "J2 第3節", "大宮", "H", "未定", "予定"),
+    Match("8月15日(土)", "19:00", "J2 第2節", "新潟", "A", "デンカＳビッグスワンスタジアム", "予定"),
+    Match("8月22日(土)", "15:00", "J2 第3節", "大宮", "H", "大和ハウス プレミストドーム", "予定"),
     Match("8月26日(水)", "19:00", "天皇杯 2回戦", "甲府", "H", "大和ハウス プレミストドーム", "予定"),
-    Match("8月29日(土)", "未定", "J2 第4節", "甲府", "A", "未定", "予定"),
+    Match("8月29日(土)", "19:00", "J2 第4節", "甲府", "A", "ＪＩＴリサイクルインクスタジアム", "予定"),
+    Match("9月6日(日)", "13:00", "J2 第5節", "栃木C", "H", "札幌厚別公園競技場", "予定"),
 ]
-SNAPSHOT_DATE = "2026年7月4日"
+SNAPSHOT_DATE = "2026年8月12日(8/8 徳島戦: 札幌 2-0 勝利)"
 
 
 def fetch_schedule() -> tuple[list[Match], bool]:
     try:
         res = requests.get(
-            "https://www.consadole-sapporo.jp/game/gamelist/",
+            "https://www.consadole-sapporo.jp/game/list/",
             headers=UA, timeout=TIMEOUT,
         )
         res.raise_for_status()
@@ -162,7 +161,11 @@ def _find_venue(text: str) -> str:
     return "-"
 
 
-def fetch_season_results(url: str) -> list[tuple]:
+# J2昇格/降格でカテゴリが変わるため、シーズンによって要更新
+SEASON_RESULTS_URL = "https://soccer.yahoo.co.jp/jleague/category/j2/teams/276/schedule?gk=6"
+
+
+def fetch_season_results(url: str = SEASON_RESULTS_URL) -> list[tuple]:
     """スポーツナビの札幌 日程・結果ページから、消化済み試合を
     (日付, 対戦相手, H/A, スコア, 結果) 形式で返す。未消化の試合は含まない。"""
     try:

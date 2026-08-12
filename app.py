@@ -111,11 +111,11 @@ HISTORICAL_SP = [
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def get_season_sp() -> tuple[list[tuple], str]:
+def get_season_sp() -> tuple[list[tuple], list[tuple], str]:
     """HISTORICAL_SP(特別大会・固定)+ 新J2シーズンのライブ結果を結合。
     公式サイト(JS非依存)を優先し、失敗時はスポーツナビ、それも失敗時は
     HISTORICAL_SPのみを返す(空スケジュールより安全)。
-    戻り値は (結合済みSEASON_SP, 診断メッセージ)。"""
+    戻り値は (結合済みSEASON_SP, 今シーズン(J2)分のみ, 診断メッセージ)。"""
     live, diag = fetch_jleague_results()
     if not live:
         live2, diag2 = fetch_official_results()
@@ -124,10 +124,10 @@ def get_season_sp() -> tuple[list[tuple], str]:
         else:
             diag = f"{diag} / 公式サイトも失敗: {diag2}"
     sp = HISTORICAL_SP + live if live else HISTORICAL_SP
-    return sp, diag
+    return sp, live, diag
 
 
-SEASON_SP, _SP_DIAG = get_season_sp()
+SEASON_SP, CURRENT_LEAGUE_SP, _SP_DIAG = get_season_sp()
 HISTORY = [
     (2025, "J2", 12), (2024, "J1", 19), (2023, "J1", 12), (2022, "J1", 10),
     (2021, "J1", 10), (2020, "J1", 12), (2019, "J1", 10), (2018, "J1", 4),
@@ -321,6 +321,7 @@ with tabs[0]:
     today = today_jst()
 
     # --- 次の試合(マッチデーカード) ---
+    st.markdown(section_label("次の試合", "NEXT MATCH"), unsafe_allow_html=True)
     next_m, next_d = None, None
     for m in sched:
         d = parse_jp_date(m.date)
@@ -341,8 +342,7 @@ with tabs[0]:
             f'<div style="position:absolute;right:-30px;top:-30px;width:130px;height:130px;'
             f'border-radius:50%;background:radial-gradient(circle,rgba(232,17,45,.28),transparent 70%)"></div>'
             f'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">'
-            f'<span style="color:{PINK};font-size:10px;font-weight:800;letter-spacing:.22em">NEXT MATCH'
-            f' <span style="color:{GRAY};letter-spacing:0">/ {next_m.comp}</span></span>'
+            f'<span style="color:{PINK};font-size:10px;font-weight:800;letter-spacing:.1em">{next_m.comp}</span>'
             f'<span class="score-num" style="background:{GRAD_RED};border-radius:20px;'
             f'padding:3px 13px;font-size:13px;box-shadow:0 2px 12px rgba(232,17,45,.5)">{when}</span></div>'
             f'<div style="margin-top:10px;display:flex;align-items:baseline;gap:10px">'
@@ -361,43 +361,32 @@ with tabs[0]:
         recent_5 = tuple(SEASON_SP[-5:])
         comment = get_ai_commentary(latest, recent_5)
         if comment:
+            st.markdown(section_label("AI講評", "AI COMMENTARY"), unsafe_allow_html=True)
             st.markdown(card(
-                f'<span style="font-size:10px;font-weight:800;color:{PINK};'
-                f'letter-spacing:.15em">AI講評</span>'
-                f'<div style="font-size:13px;line-height:1.7;margin-top:5px">{comment}</div>'
+                f'<div style="font-size:13px;line-height:1.7">{comment}</div>'
             ), unsafe_allow_html=True)
-    st.caption(f"🔧 診断: {_SP_DIAG}")
-  
-    # --- 開幕カウントダウン(コンパクト) ---
-    days = (KICKOFF_DATE - today).days
-    if days > 0:
-        st.markdown(card(
-            f'<div style="display:flex;justify-content:space-between;align-items:center">'
-            f'<div style="font-size:12.5px;font-weight:700;color:{TXT}">'
-            f'J2リーグ開幕<br><span style="color:{GRAY};font-size:11px">8/8(土) 14:45 vs 徳島</span></div>'
-            f'<div style="text-align:right"><span class="score-num" style="color:#FF3B55;'
-            f'font-size:34px;line-height:1">{days}</span>'
-            f'<span style="color:{GRAY};font-size:11px;font-weight:700"> 日</span></div></div>',
-            pad="10px 15px",
-        ), unsafe_allow_html=True)
+    with st.expander("開発者向け診断情報"):
+        st.caption(_SP_DIAG)
 
     # --- 次節 予想スタメン(フォーメーション表示) ---
-    st.markdown(section_label("次節 予想スタメン", "PREDICTED XI"), unsafe_allow_html=True)
+    st.markdown(section_label("前節スタメン(次節の目安)", "LAST MATCH XI"), unsafe_allow_html=True)
     players_all, _ = get_players_safe()
     roster = {p.name: p for p in players_all}
-    # (名簿上の氏名, 表示名, ポジション, 横%, 縦%) — 名簿に居ない選手は同ポジから自動補充
+    # 8/8 徳島戦(J2第1節)の実際の先発。複数媒体(サカノワ/ゲキサカ)で一致確認済み。
+    # 次節は相手の予想布陣やコンディションでローテーションされうるため、
+    # あくまで「直近の土台」であり断定的な予想ではない。
     XI_PLAN = [
-        ("アマドゥ・バカヨコ", "バカヨコ", "FW", 50, 12),
-        ("スパチョーク", "スパチョーク", "MF", 16, 31),
-        ("青木亮太", "青木亮太", "MF", 50, 29),
-        ("白井陽斗", "白井陽斗", "FW", 84, 31),
-        ("荒野拓馬", "荒野拓馬", "MF", 36, 51),
-        ("木戸柊摩", "木戸柊摩", "MF", 64, 51),
-        ("福森晃斗", "福森晃斗", "DF", 13, 70),
-        ("大崎玲央", "大崎玲央", "DF", 37, 74),
-        ("パク・ミンギュ", "パク・ミンギュ", "DF", 63, 74),
-        ("高尾瑠", "高尾瑠", "DF", 87, 70),
         ("田川知樹", "田川知樹", "GK", 50, 90),
+        ("高尾瑠", "高尾瑠", "DF", 13, 74),
+        ("パク・ミンギュ", "パク・ミンギュ", "DF", 37, 76),
+        ("西野奨太", "西野奨太", "DF", 63, 76),
+        ("梅津龍之介", "梅津龍之介", "DF", 87, 74),
+        ("ティラパット", "ティラパット", "MF", 16, 51),
+        ("堀米悠斗", "堀米悠斗", "MF", 38, 55),
+        ("木實快斗", "木實快斗", "MF", 62, 55),
+        ("ヴィニ・ペイショット", "ヴィニ ペイショット", "FW", 84, 51),
+        ("唐山翔自", "唐山翔自", "FW", 36, 27),
+        ("白井陽斗", "白井陽斗", "FW", 64, 27),
     ]
     used = {full for full, *_ in XI_PLAN if full in roster}
     xi = []
@@ -438,17 +427,15 @@ with tabs[0]:
         f'width:80px;height:26px;border:1.5px solid rgba(255,255,255,.35);border-bottom:none"></div>'
         f'<div style="position:absolute;left:12px;top:12px;background:rgba(0,0,0,.55);'
         f'border-radius:8px;padding:4px 10px;font-size:10px;font-weight:800;color:#fff">'
-        f'4-2-3-1 <span style="color:{PINK}">/ 監督 川井健太</span></div>'
+        f'4-3-3 <span style="color:{PINK}">/ 監督 川井健太</span></div>'
         + chips + '</div>'
     )
     st.markdown(pitch, unsafe_allow_html=True)
     st.markdown(card(
-        f'<div style="font-size:11.5px;color:{GRAY};line-height:1.8">'
-        f'<b style="color:{PINK}">予想の根拠:</b> 2026特別シーズンの実績スタメンをベースに、'
-        f'家泉怜依の退団(→大崎玲央)、マリオ・セルジオの負傷離脱を反映。'
-        f'西野奨太・堀米悠斗・大森真吾らが割って入る候補。'
-        f'※AIによる予想であり公式発表ではありません。</div>',
-        pad="10px 14px",
+        f'<div style="font-size:11.5px;color:{GRAY};line-height:1.6">'
+        f'8/8 徳島戦(J2第1節)の実際の先発を土台にした参考情報。'
+        f'選手のコンディションやローテーション、相手の予想布陣への対応次第で'
+        f'次節は変わりうるため、断定的な予想ではない点に注意。</div>'
     ), unsafe_allow_html=True)
 
     # --- チーム状態(フォーム+総括) ---
@@ -460,7 +447,7 @@ with tabs[0]:
     lo = sum(1 for m in SEASON_SP if m[4] == "負")
     st.markdown(card(
         f'<div style="display:flex;justify-content:space-between;align-items:center">'
-        f'<span style="font-size:12px;font-weight:700;color:{GRAY}">直近5試合(特別シーズン)</span>'
+        f'<span style="font-size:12px;font-weight:700;color:{GRAY}">直近5試合</span>'
         f'<span>{form_dots([m[4] for m in last5])}</span></div>'
         f'<div style="font-size:10.5px;color:{GRAY};margin-top:2px;text-align:right">'
         f'{" → ".join(m[1] for m in last5)}</div>',
@@ -493,7 +480,7 @@ with tabs[0]:
 # ============ ニュース ============
 with tabs[1]:
     c1, c2 = st.columns([3, 1])
-    c1.markdown("### 最新ニュース")
+    c1.markdown(section_label("最新ニュース", "NEWS"), unsafe_allow_html=True)
     if c2.button("更新", key="news_btn", width="stretch"):
         cached_news.clear()
     try:
@@ -517,7 +504,7 @@ with tabs[1]:
 # ============ 日程 ============
 with tabs[2]:
     c1, c2 = st.columns([3, 1])
-    c1.markdown("### 日程・結果")
+    c1.markdown(section_label("日程・結果", "SCHEDULE"), unsafe_allow_html=True)
     if c2.button("更新", key="sched_btn", width="stretch"):
         cached_schedule.clear()
     sched, live, at = get_schedule_safe()
@@ -558,7 +545,7 @@ with tabs[2]:
 # ============ 順位表 ============
 with tabs[3]:
     c1, c2 = st.columns([3, 1])
-    c1.markdown("### J2順位表")
+    c1.markdown(section_label("J2順位表", "STANDINGS"), unsafe_allow_html=True)
     if c2.button("更新", key="stand_btn", width="stretch"):
         cached_standings.clear()
     try:
@@ -580,16 +567,16 @@ with tabs[3]:
         st.caption("スポーツナビからライブ取得(10分ごと自動更新)。上位2枠=自動昇格、3〜6位=昇格PO圏。")
     else:
         st.markdown(card(
-            f'<b style="color:{RED}">開幕前のため、2026/27の順位表はまだありません。</b><br>'
-            f'<span style="font-size:13px">開幕(8/8)後にJ2全20クラブの最新順位を自動表示し、'
-            f'札幌の行をハイライトします。昇格圏(2位以内)・PO圏(6位以内)との勝点差もここで追えます。</span>'
+            f'<b style="color:{RED}">順位表を取得できませんでした。</b><br>'
+            f'<span style="font-size:13px">通信環境をご確認のうえ、上の「更新」ボタンを'
+            f'押し直してください。</span>'
         ), unsafe_allow_html=True)
         st.markdown("[スポーツナビでJ2順位表を見る](https://soccer.yahoo.co.jp/jleague/category/j2/standings)")
 
 # ============ 選手 ============
 with tabs[4]:
     c1, c2 = st.columns([3, 1])
-    c1.markdown("### 所属選手")
+    c1.markdown(section_label("所属選手", "ROSTER"), unsafe_allow_html=True)
     if c2.button("更新", key="play_btn", width="stretch"):
         cached_players.clear()
     with st.spinner("取得中…"):
@@ -732,7 +719,7 @@ with tabs[4]:
 
 # ============ 分析 ============
 with tabs[5]:
-    st.markdown("### アナリストの視点")
+    st.markdown(section_label("アナリストの視点", "ANALYST VIEW"), unsafe_allow_html=True)
 
     # --- クラブの現在地(複数年の文脈) ---
     st.markdown(card(
@@ -746,7 +733,12 @@ with tabs[5]:
         f'秋春制元年の2026/27は<b>「1年でのJ1復帰」</b>が至上命題となる。</div>'
     ), unsafe_allow_html=True)
 
-    # --- 昨季との比較(1試合平均) ---
+    # ======================================================
+    # 特別リーグ(2026年2月〜6月、開幕前の特別大会) — 固定20試合
+    # ======================================================
+    st.markdown(section_label("2026特別シーズン(開幕前)", "SPECIAL TOURNAMENT · Feb–Jun"),
+                unsafe_allow_html=True)
+
     SP_GF = sum(int(m[3].split(" ")[0].split("-")[0]) for m in HISTORICAL_SP)
     SP_GA = sum(int(m[3].split(" ")[0].split("-")[1]) for m in HISTORICAL_SP)
     SP_PTS = sum(PTS[m[4]] for m in HISTORICAL_SP)
@@ -764,10 +756,9 @@ with tabs[5]:
         f'<div style="font-size:12px;color:{GRAY};margin-top:6px">'
         f'最大の変化は<b style="color:{TXT}">守備(失点{Y25["ga"]/Y25["gp"]:.2f}→{SP_GA/N:.2f})</b>。'
         f'昨季の「打ち合って失速」から、完封{sum(1 for m in HISTORICAL_SP if int(m[3].split(" ")[0].split("-")[1]) == 0)}試合の'
-        f'「勝ち切れるチーム」へ体質が変わりつつある。</div>'
+        f'「勝ち切れるチーム」へ体質が変わりつつあった。</div>'
     ), unsafe_allow_html=True)
 
-    # 前半戦 vs 後半戦
     def summarize(ms):
         p = sum(PTS[m[4]] for m in ms)
         gf = sum(int(m[3].split(" ")[0].split("-")[0]) for m in ms)
@@ -777,69 +768,90 @@ with tabs[5]:
     p1, gf1, ga1 = summarize(HISTORICAL_SP[:10])
     p2, gf2, ga2 = summarize(HISTORICAL_SP[10:])
     st.markdown(card(
-        f'<b style="font-size:13.5px">① 別チーム級の後半戦</b>'
+        f'<b style="font-size:13.5px">別チーム級だった後半戦</b>'
         f'<table style="width:100%;font-size:13px;margin-top:6px;border-collapse:collapse;text-align:center">'
         f'<tr style="color:{GRAY};font-size:11px"><td></td><td>勝点</td><td>得点</td><td>失点</td></tr>'
         f'<tr><td style="text-align:left;font-weight:700">前半10試合</td>'
         f'<td>{p1}</td><td>{gf1}</td><td>{ga1}</td></tr>'
         f'<tr style="color:{RED};font-weight:800"><td style="text-align:left">後半10試合</td>'
         f'<td>{p2}</td><td>{gf2}</td><td>{ga2}</td></tr></table>'
-        f'<div style="font-size:12px;color:{GRAY};margin-top:6px">後半戦は7連勝を含む圧倒的内容。'
-        f'この状態を8月の開幕に持ち込めるかが最大の焦点。</div>'
+        f'<div style="font-size:12px;color:{GRAY};margin-top:6px">後半戦は7連勝を含む圧倒的内容だった。'
+        f'この特別大会は<b style="color:{TXT}">順位に反映されない事実上のプレシーズン</b>で、'
+        f'狙いは新体制の色出しと連携構築。以下の分析は、この特別大会ではなく'
+        f'<b style="color:{PINK}">実際に勝ち点がかかる2026/27 J2リーグ戦</b>を対象にする。</div>'
     ), unsafe_allow_html=True)
 
-    # ホーム/アウェイ
-    hm = [m for m in SEASON_SP if m[2] == "H"]
-    aw = [m for m in SEASON_SP if m[2] == "A"]
-    ph, gfh, gah = summarize(hm)
-    pa, gfa, gaa = summarize(aw)
-    cs = sum(1 for m in SEASON_SP if int(m[3].split(" ")[0].split("-")[1]) == 0)
-    st.markdown(card(
-        f'<b style="font-size:13.5px">② ホーム/アウェイと守備</b>'
-        f'<div style="display:flex;gap:8px;margin-top:8px;text-align:center">'
-        f'<div style="flex:1;background:#22060b;border:1px solid #3a1218;border-radius:12px;padding:9px">'
-        f'<div style="font-size:10.5px;font-weight:800;color:{PINK}">ホーム {len(hm)}試合</div>'
-        f'<div class="score-num" style="font-size:21px;color:#FF3B55">勝点{ph}</div>'
-        f'<div style="font-size:10.5px;color:{GRAY}">得{gfh}/失{gah}</div></div>'
-        f'<div style="flex:1;background:{CARD_BG};border:1px solid {CARD_BD};border-radius:12px;padding:9px">'
-        f'<div style="font-size:10.5px;font-weight:800;color:{GRAY}">アウェイ {len(aw)}試合</div>'
-        f'<div class="score-num" style="font-size:21px;color:{TXT}">勝点{pa}</div>'
-        f'<div style="font-size:10.5px;color:{GRAY}">得{gfa}/失{gaa}</div></div>'
-        f'<div style="flex:1;background:{GRAD_RED};border-radius:12px;padding:9px;color:#fff;'
-        f'box-shadow:0 2px 14px rgba(232,17,45,.4)">'
-        f'<div style="font-size:10.5px;font-weight:800">完封</div>'
-        f'<div class="score-num" style="font-size:21px">{cs}試合</div>'
-        f'<div style="font-size:10.5px;opacity:.85">/{N}試合</div></div></div>'
-    ), unsafe_allow_html=True)
+    # ======================================================
+    # 今回のリーグ戦(2026/27 J2、8/8開幕) — ライブ取得分のみ
+    # ======================================================
+    st.markdown(section_label("2026/27 J2リーグ戦(開幕後)", "CURRENT LEAGUE SEASON"),
+                unsafe_allow_html=True)
 
-    st.markdown("### 勝点の積み上げ")
-    total, pts_cum = 0, []
-    for m in SEASON_SP:
-        total += PTS[m[4]]
-        pts_cum.append(total)
-    df_pts = pd.DataFrame({"勝点": pts_cum}, index=range(1, len(pts_cum) + 1))
-    df_pts.index.name = "節"
-    st.line_chart(df_pts, color=RED, height=200)
+    if not CURRENT_LEAGUE_SP:
+        st.markdown(card(
+            f'<span style="font-size:12.5px;color:{GRAY}">開幕(8/8)後の試合結果をまだ取得できていません。'
+            f'試合終了後にこのページを開き直すと反映されます。</span>'
+        ), unsafe_allow_html=True)
+    else:
+        cur = CURRENT_LEAGUE_SP
+        hm = [m for m in cur if m[2] == "H"]
+        aw = [m for m in cur if m[2] == "A"]
+        ph, gfh, gah = summarize(hm)
+        pa, gfa, gaa = summarize(aw)
+        cs = sum(1 for m in cur if int(m[3].split(" ")[0].split("-")[1]) == 0)
+        st.markdown(card(
+            f'<b style="font-size:13.5px">ホーム/アウェイと守備(今リーグ戦)</b>'
+            f'<div style="display:flex;gap:8px;margin-top:8px;text-align:center">'
+            f'<div style="flex:1;background:#22060b;border:1px solid #3a1218;border-radius:12px;padding:9px">'
+            f'<div style="font-size:10.5px;font-weight:800;color:{PINK}">ホーム {len(hm)}試合</div>'
+            f'<div class="score-num" style="font-size:21px;color:#FF3B55">勝点{ph}</div>'
+            f'<div style="font-size:10.5px;color:{GRAY}">得{gfh}/失{gah}</div></div>'
+            f'<div style="flex:1;background:{CARD_BG};border:1px solid {CARD_BD};border-radius:12px;padding:9px">'
+            f'<div style="font-size:10.5px;font-weight:800;color:{GRAY}">アウェイ {len(aw)}試合</div>'
+            f'<div class="score-num" style="font-size:21px;color:{TXT}">勝点{pa}</div>'
+            f'<div style="font-size:10.5px;color:{GRAY}">得{gfa}/失{gaa}</div></div>'
+            f'<div style="flex:1;background:{GRAD_RED};border-radius:12px;padding:9px;color:#fff;'
+            f'box-shadow:0 2px 14px rgba(232,17,45,.4)">'
+            f'<div style="font-size:10.5px;font-weight:800">完封</div>'
+            f'<div class="score-num" style="font-size:21px">{cs}試合</div>'
+            f'<div style="font-size:10.5px;opacity:.85">/{len(cur)}試合</div></div></div>'
+        ), unsafe_allow_html=True)
 
-    st.markdown("### 得点・失点の推移")
-    gf = [int(m[3].split(" ")[0].split("-")[0]) for m in SEASON_SP]
-    ga = [int(m[3].split(" ")[0].split("-")[1]) for m in SEASON_SP]
-    df_g = pd.DataFrame({"得点": gf, "失点": ga}, index=range(1, len(gf) + 1))
-    df_g.index.name = "節"
-    st.bar_chart(df_g, color=[RED, "#B9BDC4"], height=200)
+        st.markdown(section_label("勝点の積み上げ(今リーグ戦)", "POINTS PROGRESSION"), unsafe_allow_html=True)
+        total, pts_cum = 0, []
+        for m in cur:
+            total += PTS[m[4]]
+            pts_cum.append(total)
+        df_pts = pd.DataFrame({"勝点": pts_cum}, index=range(1, len(pts_cum) + 1))
+        df_pts.index.name = "節"
+        st.line_chart(df_pts, color=RED, height=200)
 
-    st.markdown("### 全試合結果")
-    st.dataframe(
-        pd.DataFrame([{"日付": d, "対戦": o, "H/A": h, "スコア": s, "結果": r}
-                      for d, o, h, s, r in SEASON_SP]),
-        width="stretch", hide_index=True, height=350,
-    )
+        st.markdown(section_label("得点・失点の推移(今リーグ戦)", "GOALS TREND"), unsafe_allow_html=True)
+        gf = [int(m[3].split(" ")[0].split("-")[0]) for m in cur]
+        ga = [int(m[3].split(" ")[0].split("-")[1]) for m in cur]
+        df_g = pd.DataFrame({"得点": gf, "失点": ga}, index=range(1, len(gf) + 1))
+        df_g.index.name = "節"
+        st.bar_chart(df_g, color=[RED, "#B9BDC4"], height=200)
 
-    st.markdown("### リーグ成績の推移")
+        st.markdown(section_label("今リーグ戦 全試合結果", "LEAGUE RESULTS"), unsafe_allow_html=True)
+        st.dataframe(
+            pd.DataFrame([{"日付": d, "対戦": o, "H/A": h, "スコア": s, "結果": r}
+                          for d, o, h, s, r in cur]),
+            width="stretch", hide_index=True, height=min(350, 40 + 35 * len(cur)),
+        )
+
+    with st.expander("2026特別シーズンの全試合結果を見る(参考・順位には反映されない大会)"):
+        st.dataframe(
+            pd.DataFrame([{"日付": d, "対戦": o, "H/A": h, "スコア": s, "結果": r}
+                          for d, o, h, s, r in HISTORICAL_SP]),
+            width="stretch", hide_index=True, height=350,
+        )
+
+    st.markdown(section_label("リーグ成績の推移", "SEASON TREND"), unsafe_allow_html=True)
     st.dataframe(
         pd.DataFrame([{"年": y, "リーグ": lg, "順位": f"{r}位"} for y, lg, r in HISTORY]),
         width="stretch", hide_index=True,
     )
     st.caption("J2優勝3回(2000・2007・2016)/ J1最高4位(2018)/ 2017〜24年に8季連続J1在籍")
 
-st.caption("コンサ情報ボード v2.3 — Stadium Night Edition")
+st.caption("コンサ情報ボード v2.4 — Stadium Night Edition")

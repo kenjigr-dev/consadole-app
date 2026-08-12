@@ -110,14 +110,16 @@ HISTORICAL_SP = [
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def get_season_sp() -> list[tuple]:
+def get_season_sp() -> tuple[list[tuple], str]:
     """HISTORICAL_SP(特別大会・固定)+ 新J2シーズンのライブ結果を結合。
-    ライブ取得に失敗した場合はHISTORICAL_SPのみを返す(空スケジュールより安全)。"""
-    live = fetch_season_results()
-    return HISTORICAL_SP + live if live else HISTORICAL_SP
+    ライブ取得に失敗した場合はHISTORICAL_SPのみを返す(空スケジュールより安全)。
+    戻り値は (結合済みSEASON_SP, 診断メッセージ)。"""
+    live, diag = fetch_season_results()
+    sp = HISTORICAL_SP + live if live else HISTORICAL_SP
+    return sp, diag
 
 
-SEASON_SP = get_season_sp()
+SEASON_SP, _SP_DIAG = get_season_sp()
 HISTORY = [
     (2025, "J2", 12), (2024, "J1", 19), (2023, "J1", 12), (2022, "J1", 10),
     (2021, "J1", 10), (2020, "J1", 12), (2019, "J1", 10), (2018, "J1", 4),
@@ -356,6 +358,7 @@ with tabs[0]:
                 f'letter-spacing:.15em">AI講評</span>'
                 f'<div style="font-size:13px;line-height:1.7;margin-top:5px">{comment}</div>'
             ), unsafe_allow_html=True)
+    st.caption(f"🔧 診断: {_SP_DIAG}")
   
     # --- 開幕カウントダウン(コンパクト) ---
     days = (KICKOFF_DATE - today).days

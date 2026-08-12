@@ -165,16 +165,18 @@ def _find_venue(text: str) -> str:
 SEASON_RESULTS_URL = "https://soccer.yahoo.co.jp/jleague/category/j2/teams/276/schedule?gk=6"
 
 
-def fetch_season_results(url: str = SEASON_RESULTS_URL) -> list[tuple]:
+def fetch_season_results(url: str = SEASON_RESULTS_URL) -> tuple[list[tuple], str]:
     """スポーツナビの札幌 日程・結果ページから、消化済み試合を
-    (日付, 対戦相手, H/A, スコア, 結果) 形式で返す。未消化の試合は含まない。"""
+    (日付, 対戦相手, H/A, スコア, 結果) 形式で返す。未消化の試合は含まない。
+    戻り値は (結果リスト, 診断メッセージ)。"""
     try:
         res = requests.get(url, headers=UA, timeout=TIMEOUT)
         res.raise_for_status()
-    except Exception:
-        return []
+    except Exception as e:
+        return [], f"HTTP取得失敗: {type(e).__name__}: {e}"
     soup = BeautifulSoup(res.text, "html.parser")
     results: list[tuple] = []
+    tables_found = len(soup.find_all("table"))
     for table in soup.find_all("table"):
         for tr in table.find_all("tr"):
             cells = tr.find_all("td")
@@ -206,7 +208,9 @@ def fetch_season_results(url: str = SEASON_RESULTS_URL) -> list[tuple]:
             else:
                 score_str, result = f"{sp}-{op}", ("勝" if win else "負")
             results.append((date_str, opp, ha, score_str, result))
-    return results
+    if not results:
+        return [], f"取得は成功したが試合データを0件しか抽出できず(table数:{tables_found}, HTML長:{len(res.text)})"
+    return results, f"OK: {len(results)}試合取得"
 
 
 if __name__ == "__main__":

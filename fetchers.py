@@ -85,61 +85,89 @@ SNAPSHOT_SCHEDULE: list[Match] = [
 SNAPSHOT_DATE = "2026年8月12日(8/8 徳島戦: 札幌 2-0 勝利)"
 
 
-def fetch_schedule() -> tuple[list[Match], bool]:
+def _fetch_official_page_text() -> str | None:
     try:
         res = requests.get(
             "https://www.consadole-sapporo.jp/game/list/",
             headers=UA, timeout=TIMEOUT,
         )
         res.raise_for_status()
-        soup = BeautifulSoup(res.text, "html.parser")
-        matches = _parse_official_gamelist(soup)
+    except Exception:
+        return None
+    soup = BeautifulSoup(res.text, "html.parser")
+    return soup.get_text(" ", strip=True)
+
+
+def fetch_schedule() -> tuple[list[Match], bool]:
+    text = _fetch_official_page_text()
+    if text:
+        matches, _ = _parse_official_gamelist(text)
         if matches:
             return matches, True
-    except Exception:
-        pass
     return SNAPSHOT_SCHEDULE, False
 
 
-def _parse_official_gamelist(soup: BeautifulSoup) -> list[Match]:
-    matches: list[Match] = []
-    for table in soup.find_all("table"):
-        for tr in table.find_all("tr"):
-            cells = [td.get_text(" ", strip=True) for td in tr.find_all(["td", "th"])]
-            row = " ".join(cells)
-            m = re.search(r"(\d{1,2})[./月](\d{1,2})", row)
-            if not m:
-                continue
-            date = f"{int(m.group(1))}月{int(m.group(2))}日"
-            score = re.search(r"(\d+)\s*[-−]\s*(\d+)", row)
-            ko = re.search(r"(\d{1,2}:\d{2})", row)
-            opp = _find_opponent(row)
-            if not opp:
-                continue
-            matches.append(Match(
-                date=date,
-                kickoff=ko.group(1) if ko else "未定",
-                comp=_find_comp(row),
-                opponent=opp,
-                home_away="H" if ("ドーム" in row or "厚別" in row or "宮の沢" in row) else "A",
-                venue=_find_venue(row),
-                result=f"{score.group(1)}-{score.group(2)}" if score else "予定",
-            ))
-    return matches
-
-
 _OPPONENTS = [
+    "横浜FC", "栃木C",  # 長い表記を先に(部分一致の優先順位)
     "徳島", "新潟", "大宮", "甲府", "名古屋", "仙台", "秋田", "山形", "いわき",
-    "栃木C", "横浜FC", "湘南", "富山", "磐田", "藤枝", "今治", "鳥栖", "大分",
-    "宮崎", "八戸",
+    "湘南", "富山", "磐田", "藤枝", "今治", "鳥栖", "大分", "宮崎", "八戸",
 ]
+_ALL_TEAMS = _OPPONENTS + ["札幌"]
+_TEAM_ALT = "|".join(re.escape(t) for t in sorted(_ALL_TEAMS, key=len, reverse=True))
+_MATCH_RE = re.compile(
+    rf"(?P<pre>.{{0,70}}?)(?P<t1>{_TEAM_ALT})\s*home\s*(?P=t1)\s*"
+    rf"(?P<score>\d+\s*-\s*\d+|-)\s*(?P<t2>{_TEAM_ALT})\s*away\s*(?P=t2)"
+)
 
 
-def _find_opponent(text: str) -> str:
-    for o in _OPPONENTS:
-        if o in text:
-            return o
-    return ""
+def _parse_official_gamelist(text: str) -> tuple[list[Match], list[tuple]]:
+    """公式サイト試合日程ページ(divカードレイアウト、<table>なし)を
+    home/awayラベルを手がかりにテキストから解析する。
+    戻り値: (Matchのリスト, 消化済み試合の (日付,対戦相手,H/A,スコア,結果) リスト)"""
+    schedule: list[Match] = []
+    results: list[tuple] = []
+    for m in _MATCH_RE.finditer(text):
+        pre, t1, t2, score = m.group("pre"), m.group("t1"), m.group("t2"), m.group("score")
+        date_m = re.search(r"(\d{1,2})\.(\d{1,2})", pre)
+        time_m = re.search(r"(\d{1,2}:\d{2})", pre)
+        round_m = re.search(r"第\s*(\d+)\s*節", pre)
+        if "天皇杯" in pre:
+            comp = "天皇杯" + (re.search(r"(\d+回戦)", pre).group(1) if re.search(r"(\d+回戦)", pre) else "")
+        elif "ルヴァン" in pre:
+            comp = "ルヴァンカップ"
+        elif round_m:
+            comp = f"J2 第{round_m.group(1)}節"
+        else:
+            comp = "試合"
+        if t1 != "札幌" and t2 != "札幌":
+            continue  # 札幌戦以外(誤マッチ)は除外
+        opp = t2 if t1 == "札幌" else t1
+        ha = "H" if t1 == "札幌" else "A"
+        date_str = f"{int(date_m.group(1))}月{int(date_m.group(2))}日" if date_m else "未定"
+        score_clean = re.sub(r"\s+", "", score)
+        schedule.append(Match(
+            date=date_str, kickoff=time_m.group(1) if time_m else "未定",
+            comp=comp, opponent=opp, home_away=ha,
+            venue=_find_venue(pre), result=score_clean if score_clean != "-" else "予定",
+        ))
+        if score_clean != "-" and date_m:
+            h, a = (int(x) for x in score_clean.split("-"))
+            sp, op = (h, a) if t1 == "札幌" else (a, h)
+            label = "勝" if sp > op else ("分" if sp == op else "負")
+            date_key = f"{int(date_m.group(1)):02d}.{int(date_m.group(2)):02d}"
+            results.append((date_key, opp, ha, f"{sp}-{op}", label))
+    return schedule, results
+
+
+def fetch_official_results() -> tuple[list[tuple], str]:
+    """公式サイトから消化済み試合結果を取得。戻り値は(結果リスト, 診断メッセージ)。"""
+    text = _fetch_official_page_text()
+    if not text:
+        return [], "公式サイトのHTTP取得に失敗"
+    _, results = _parse_official_gamelist(text)
+    if not results:
+        return [], f"公式サイトは取得できたが試合データを抽出できず(HTML長:{len(text)})"
+    return results, f"OK(公式サイト): {len(results)}試合取得"
 
 
 def _find_comp(text: str) -> str:

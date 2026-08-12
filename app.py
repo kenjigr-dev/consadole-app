@@ -5,8 +5,9 @@ from datetime import date, datetime, timedelta, timezone
 import pandas as pd
 import streamlit as st
 
-from fetchers import (SNAPSHOT_DATE, fetch_news, fetch_players,
-                      fetch_schedule, fetch_season_results, fetch_standings)
+from fetchers import (SNAPSHOT_DATE, fetch_news, fetch_official_results,
+                      fetch_players, fetch_schedule, fetch_season_results,
+                      fetch_standings)
 
 import anthropic
 
@@ -112,9 +113,16 @@ HISTORICAL_SP = [
 @st.cache_data(ttl=1800, show_spinner=False)
 def get_season_sp() -> tuple[list[tuple], str]:
     """HISTORICAL_SP(特別大会・固定)+ 新J2シーズンのライブ結果を結合。
-    ライブ取得に失敗した場合はHISTORICAL_SPのみを返す(空スケジュールより安全)。
+    公式サイト(JS非依存)を優先し、失敗時はスポーツナビ、それも失敗時は
+    HISTORICAL_SPのみを返す(空スケジュールより安全)。
     戻り値は (結合済みSEASON_SP, 診断メッセージ)。"""
-    live, diag = fetch_season_results()
+    live, diag = fetch_official_results()
+    if not live:
+        live2, diag2 = fetch_season_results()
+        if live2:
+            live, diag = live2, diag2
+        else:
+            diag = f"{diag} / スポーツナビも失敗: {diag2}"
     sp = HISTORICAL_SP + live if live else HISTORICAL_SP
     return sp, diag
 

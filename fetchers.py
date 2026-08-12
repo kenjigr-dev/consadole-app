@@ -190,6 +190,64 @@ def _find_venue(text: str) -> str:
     return "-"
 
 
+# ============ Jリーグ公式データサイト(最も堅牢: サーバー生成のHTML表) ============
+# competition_years/frame_ids はシーズン切替時に要確認 (J2=2, J3=3, ルヴァン=11)
+JLEAGUE_DATA_URL = ("https://data.j-league.or.jp/SFMS01/search"
+                    "?competition_years=2026&competition_frame_ids=2")
+
+
+def fetch_jleague_results(url: str = JLEAGUE_DATA_URL) -> tuple[list[tuple], str]:
+    """Jリーグ公式データサイトの検索結果(HTML表)から札幌の消化済み試合を抽出。
+    行形式: シーズン|大会|節|試合日|K/O|ホーム|スコア|アウェイ|スタジアム|入場者数|放送
+    戻り値は (結果リスト, 診断メッセージ)。"""
+    try:
+        res = requests.get(url, headers=UA, timeout=TIMEOUT)
+        res.raise_for_status()
+    except Exception as e:
+        return [], f"Jリーグデータサイト取得失敗: {type(e).__name__}"
+    soup = BeautifulSoup(res.text, "html.parser")
+    results: list[tuple] = []
+    rows_seen = 0
+    for tr in soup.find_all("tr"):
+        cells = [td.get_text(" ", strip=True) for td in tr.find_all("td")]
+        if len(cells) < 8:
+            continue
+        rows_seen += 1
+        _, _, _, date_c, _, home, score_c, away = cells[:8]
+        if "札幌" not in home and "札幌" not in away:
+            continue
+        m_sc = re.match(r"(\d+)\s*-\s*(\d+)(?:\s*\(PK(\d+)-(\d+)\))?", score_c)
+        m_dt = re.search(r"\d{2}/(\d{2})/(\d{2})", date_c)
+        if not m_sc or not m_dt:
+            continue  # スコア未入力=未消化
+        h, a = int(m_sc.group(1)), int(m_sc.group(2))
+        is_home = "札幌" in home
+        opp_full = away if is_home else home
+        opp = _shorten_team(opp_full)
+        ha = "H" if is_home else "A"
+        sp, op = (h, a) if is_home else (a, h)
+        date_str = f"{int(m_dt.group(1)):02d}.{int(m_dt.group(2)):02d}"
+        if m_sc.group(3):  # PK戦あり
+            pk_h, pk_a = int(m_sc.group(3)), int(m_sc.group(4))
+            pk_win = (pk_h > pk_a) if is_home else (pk_a > pk_h)
+            score_str = f"{sp}-{op} PK{'○' if pk_win else '●'}"
+            result = "PK勝" if pk_win else "PK負"
+        else:
+            result = "勝" if sp > op else ("分" if sp == op else "負")
+            score_str = f"{sp}-{op}"
+        results.append((date_str, opp, ha, score_str, result))
+    if not results:
+        return [], f"Jリーグデータサイトは取得できたが札幌の消化済み試合なし(行数:{rows_seen})"
+    return results, f"OK(Jリーグデータサイト): {len(results)}試合取得"
+
+
+def _shorten_team(name: str) -> str:
+    for short in _OPPONENTS:
+        if short in name:
+            return short
+    return name[:4]
+
+
 # J2昇格/降格でカテゴリが変わるため、シーズンによって要更新
 SEASON_RESULTS_URL = "https://soccer.yahoo.co.jp/jleague/category/j2/teams/276/schedule?gk=6"
 
